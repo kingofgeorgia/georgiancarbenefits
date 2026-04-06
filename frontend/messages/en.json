@@ -1,0 +1,84 @@
+{
+  "nav": {
+    "calculator": "Calculator",
+    "catalog": "Car Catalog",
+    "history": "History",
+    "login": "Sign In",
+    "register": "Sign Up",
+    "logout": "Sign Out"
+  },
+  "hero": {
+    "title": "Is it worth importing a car from Georgia?",
+    "subtitle": "Calculate the full cost of importing a car from Georgia to Russia — customs, recycling fee, logistics — and compare with a domestic analog.",
+    "cta": "Calculate"
+  },
+  "calculator": {
+    "title": "Import Cost Calculator",
+    "carPriceUsd": "Car price (USD)",
+    "engineVolume": "Engine volume (cc)",
+    "carYear": "Year of manufacture",
+    "logisticsCost": "Logistics Georgia → Russia (₽)",
+    "rfAnalogPrice": "RF analog price (₽, optional)",
+    "note": "Note (optional)",
+    "calculate": "Calculate",
+    "saveToHistory": "Save calculation",
+    "results": {
+      "title": "Calculation result",
+      "carPrice": "Car price in rubles",
+      "customsDuty": "Customs duty",
+      "recyclingFee": "Recycling fee",
+      "logistics": "Logistics",
+      "total": "Total cost",
+      "savings": "Savings vs RF price",
+      "overpay": "Overpay vs RF price"
+    }
+  },
+  "rates": {
+    "title": "Current exchange rates",
+    "usdRub": "USD → ₽",
+    "eurRub": "EUR → ₽",
+    "gelRub": "GEL → ₽"
+  },
+  "catalog": {
+    "title": "Cars from myauto.ge",
+    "search": "Search",
+    "make": "Make",
+    "model": "Model",
+    "yearFrom": "Year from",
+    "yearTo": "Year to",
+    "priceUsdTo": "Price up to (USD)",
+    "logisticsCost": "Logistics (₽)",
+    "estimatedTotal": "Estimated total (RUB)",
+    "noResults": "No cars found. Try different filters.",
+    "viewOnMyauto": "View on myauto.ge",
+    "mileage": "Mileage",
+    "km": "km"
+  },
+  "history": {
+    "title": "Calculation history",
+    "empty": "You have no saved calculations.",
+    "delete": "Delete",
+    "total": "Total",
+    "year": "Year",
+    "engine": "Engine",
+    "date": "Date"
+  },
+  "auth": {
+    "email": "Email",
+    "password": "Password",
+    "loginTitle": "Sign In",
+    "registerTitle": "Sign Up",
+    "loginAction": "Sign In",
+    "registerAction": "Sign Up",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "signUp": "Sign up",
+    "signIn": "Sign in"
+  },
+  "errors": {
+    "required": "Required field",
+    "invalidEmail": "Invalid email",
+    "minPassword": "Minimum 8 characters",
+    "generic": "Something went wrong. Please try again."
+  }
+}
