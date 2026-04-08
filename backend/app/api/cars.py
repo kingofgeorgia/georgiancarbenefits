@@ -1,6 +1,8 @@
+import re
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
 from app.api.deps import get_current_user
 from app.models.user import User
@@ -8,6 +10,10 @@ from app.schemas.cars import CarListing
 from app.services import currency, customs, myauto, recycling
 
 router = APIRouter(prefix="/cars", tags=["cars"])
+
+
+class CarUrlRequest(BaseModel):
+    url: str
 
 
 @router.get("/search", response_model=list[CarListing])
@@ -57,3 +63,19 @@ async def search(
 @router.get("/makes")
 async def get_makes(_: User = Depends(get_current_user)) -> list[Any]:
     return await myauto.get_makes()
+
+
+@router.post("/from-url", response_model=CarListing)
+async def car_from_url(
+    payload: CarUrlRequest,
+    _: User = Depends(get_current_user),
+):
+    """Принять ссылку на авто с myauto.ge, вернуть данные авто."""
+    match = re.search(r"/pr/(\d+)", payload.url)
+    if not match:
+        raise HTTPException(status_code=422, detail="Некорректная ссылка myauto.ge. Ожидается формат: https://www.myauto.ge/.../pr/12345")
+    car_id = int(match.group(1))
+    raw = await myauto.get_car_by_id(car_id)
+    if not raw:
+        raise HTTPException(status_code=404, detail="Автомобиль не найден на myauto.ge")
+    return myauto.parse_car(raw)

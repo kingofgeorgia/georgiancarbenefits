@@ -20,6 +20,9 @@
     "logisticsCost": "Логистика Грузия → РФ (₽)",
     "rfAnalogPrice": "Цена аналога в РФ (₽, необязательно)",
     "note": "Заметка (необязательно)",
+    "urlLabel": "Вставить ссылку с myauto.ge",
+    "urlPlaceholder": "https://www.myauto.ge/.../pr/12345678",
+    "urlLoad": "Загрузить авто",
     "calculate": "Рассчитать",
     "saveToHistory": "Сохранить расчёт",
     "results": {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -10,8 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Link2, X } from "lucide-react";
 import { api } from "@/lib/api";
-import type { CalculatorRequest, CalculatorResult } from "@/lib/types";
+import type { CalculatorRequest, CalculatorResult, CarListing } from "@/lib/types";
 import { CalculatorResults } from "./CalculatorResults";
 import { CurrencyRatesWidget } from "./CurrencyRatesWidget";
 
@@ -20,6 +23,22 @@ const currentYear = new Date().getFullYear();
 export function Calculator() {
   const t = useTranslations("calculator");
   const tErr = useTranslations("errors");
+
+  const [carUrl, setCarUrl] = useState("");
+  const [loadedCar, setLoadedCar] = useState<CarListing | null>(null);
+
+  const urlMutation = useMutation({
+    mutationFn: (url: string) =>
+      api.post<CarListing>("/cars/from-url", { url }).then((r) => r.data),
+    onSuccess: (car) => {
+      setLoadedCar(car);
+      setValue("car_price_usd", car.price_usd);
+      setValue("engine_volume_cc", car.engine_volume_cc);
+      setValue("car_year", car.year);
+      toast.success(`${car.make} ${car.model} ${car.year} — данные загружены`);
+    },
+    onError: () => toast.error("Не удалось загрузить авто. Проверьте ссылку."),
+  });
 
   const schema = z.object({
     car_price_usd: z.coerce.number().positive(tErr("required")),
@@ -36,7 +55,7 @@ export function Calculator() {
 
   type FormData = z.infer<typeof schema>;
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors }, setValue } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { logistics_cost_rub: 80000 },
   });
@@ -75,6 +94,43 @@ export function Calculator() {
           <CardTitle>{t("title")}</CardTitle>
         </CardHeader>
         <CardContent>
+          {/* URL input for myauto.ge */}
+          <div className="mb-5 space-y-2">
+            <Label className="flex items-center gap-1">
+              <Link2 className="h-4 w-4" /> {t("urlLabel")}
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                placeholder={t("urlPlaceholder")}
+                value={carUrl}
+                onChange={(e) => setCarUrl(e.target.value)}
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={!carUrl || urlMutation.isPending}
+                onClick={() => urlMutation.mutate(carUrl)}
+              >
+                {urlMutation.isPending ? "..." : t("urlLoad")}
+              </Button>
+            </div>
+            {loadedCar && (
+              <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-md text-sm">
+                <span className="text-green-800 font-medium">
+                  {loadedCar.make} {loadedCar.model} {loadedCar.year}
+                </span>
+                <Badge variant="outline">${loadedCar.price_usd.toLocaleString()}</Badge>
+                <a href={loadedCar.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs ml-auto">
+                  myauto.ge ↗
+                </a>
+                <button type="button" onClick={() => { setLoadedCar(null); setCarUrl(""); }}>
+                  <X className="h-4 w-4 text-gray-400 hover:text-gray-700" />
+                </button>
+              </div>
+            )}
+          </div>
+
           <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label>{t("carPriceUsd")}</Label>

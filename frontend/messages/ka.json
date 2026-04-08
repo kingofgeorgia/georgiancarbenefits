@@ -20,6 +20,9 @@
     "logisticsCost": "ლოჯისტიკა საქართველო → რუსეთი (₽)",
     "rfAnalogPrice": "ანალოგის ფასი რუსეთში (₽, არასავალდებულო)",
     "note": "შენიშვნა (არასავალდებულო)",
+    "urlLabel": "myauto.ge ბმული",
+    "urlPlaceholder": "https://www.myauto.ge/.../pr/12345678",
+    "urlLoad": "მანქანის ჩატვირთვა",
     "calculate": "გამოთვლა",
     "saveToHistory": "გამოთვლის შენახვა",
     "results": {
