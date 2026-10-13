@@ -1,33 +1,154 @@
-# 🇬🇪 Georgian Car Benefits
+# MileON Import Calculator
 
-Веб-приложение для расчёта и сравнения стоимости покупки автомобиля из Грузии с доставкой в Россию.
+Full-stack Georgia → Russia car import calculator built with FastAPI, Next.js, PostgreSQL and Docker.
 
-> Refactor in progress on `refactor/mileon-import-calculator-v1`. The standalone repository is being synchronized with the newer implementation from `MileON-Autohunter` before the production-oriented cleanup.
+The application estimates the total cost of buying a vehicle in Georgia and importing it to Russia for personal use. It combines vehicle price, customs fees, unified customs duty, recycling fee, logistics and optional Russia-market comparison.
 
-**Что делает приложение:**
-- Считает таможенные пошлины РФ (по объёму двигателя, году выпуска, стоимости авто)
-- Считает утилизационный сбор
-- Переводит цены из USD / EUR / GEL в рубли по актуальному курсу
-- Учитывает стоимость логистики Грузия → РФ
-- Сравнивает итоговую стоимость с ценой аналогичного авто в РФ
-- Показывает каталог авто с myauto.ge с фильтрами по марке/модели и предварительным расчётом для каждого
-- Сохраняет историю расчётов для авторизованных пользователей
+> **Important:** calculations are estimates. Customs and recycling rules change over time and must be verified against official sources for the actual declaration date.
 
----
+## Features
 
-## Стек технологий
+- Personal-use import calculation for passenger cars
+- 2026 customs fee bands
+- Unified customs rate calculation by vehicle value, engine size and age
+- Recycling-fee calculation using engine size, power and powertrain type
+- ICE, hybrid, series-hybrid and EV support
+- USD / EUR / GEL currency conversion
+- myauto.ge vehicle import workflow
+- Comparison with an equivalent vehicle price in Russia
+- Authenticated calculation history
+- Russian, English and Georgian UI
+- Docker-based local environment
+- Backend regression tests and GitHub Actions CI
 
-| Слой | Технология |
+## Stack
+
+| Layer | Technology |
 |---|---|
-| Backend | Python 3.12 + FastAPI + SQLAlchemy 2 + Alembic |
-| База данных | PostgreSQL 16 |
-| Frontend | Next.js 16 + TypeScript + Tailwind CSS + shadcn/ui |
-| Авторизация | JWT (python-jose) + bcrypt |
-| i18n | next-intl — Русский / English / ქართული |
-| Контейнеры | Docker + docker-compose |
+| Backend | Python 3.12, FastAPI, SQLAlchemy 2, Alembic |
+| Database | PostgreSQL 16 |
+| Frontend | Next.js 16, React, TypeScript, Tailwind CSS |
+| Validation | Pydantic, Zod |
+| Auth | JWT |
+| i18n | next-intl |
+| Containers | Docker Compose |
+| Quality | pytest, Ruff, ESLint, TypeScript |
 
----
+## Quick start
 
-## Статус
+```bash
+git clone https://github.com/kingofgeorgia/georgiancarbenefits.git
+cd georgiancarbenefits
+cp .env.example .env
+docker compose up --build
+```
 
-Ветка `refactor/mileon-import-calculator-v1` используется для безопасного переноса актуальной реализации и дальнейшего рефакторинга. `main` остаётся без изменений до проверки Pull Request.
+Frontend: `http://localhost:3000`
+
+API docs: `http://localhost:8000/docs`
+
+## Development
+
+### Backend
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pytest -q
+ruff check app tests
+uvicorn app.main:app --reload
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm ci
+npm run lint
+npm run typecheck
+npm run build
+npm run dev
+```
+
+## Calculation model
+
+The current primary calculation path is `backend/app/services/personal_import_customs.py`.
+
+It calculates:
+
+- customs value in RUB / EUR
+- customs processing fee
+- unified customs duty
+- recycling coefficient
+- recycling fee
+- matched value / engine / power bands for diagnostics
+
+The public calculator endpoint is:
+
+```text
+POST /calculator/total
+```
+
+A one-off calculation does not require authentication. User-specific functionality such as calculation history can remain authenticated.
+
+## Testing
+
+Regression tests currently cover representative scenarios including:
+
+- premium ICE vehicle control case
+- hp → kW conversion
+- customs-fee upper band
+- 3000 cc boundary condition
+- preferential low-power recycling coefficients
+- EV with zero engine displacement
+
+Run:
+
+```bash
+cd backend
+pytest -q
+```
+
+## Project structure
+
+```text
+georgiancarbenefits/
+├── .github/workflows/ci.yml
+├── backend/
+│   ├── app/
+│   │   ├── api/
+│   │   ├── core/
+│   │   ├── models/
+│   │   ├── schemas/
+│   │   └── services/
+│   ├── tests/
+│   └── alembic/
+├── frontend/
+│   ├── messages/
+│   └── src/
+├── docs/
+├── docker-compose.yml
+└── .env.example
+```
+
+## Security
+
+- Never commit `.env` or production secrets.
+- Replace example credentials before deployment.
+- Do not expose PostgreSQL directly to the internet in production.
+- Treat external vehicle and exchange-rate data as untrusted input.
+
+## Roadmap
+
+- exact manufacture-date based age calculation
+- official exchange-rate provider with timestamp/staleness metadata
+- tariff rulesets moved from Python constants to versioned data files
+- deeper myauto.ge enrichment and vehicle-spec lookup
+- production Docker profile and reverse proxy
+- MileON Cars lead-generation CTA
+
+## License
+
+License not specified yet.
