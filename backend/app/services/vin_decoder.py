@@ -14,6 +14,31 @@ from app.services.vehicle_specs import resolve_vehicle_spec_by_identity
 
 VIN_RE = re.compile(r"^[A-HJ-NPR-Z0-9]{17}$")
 METRIC_HP_PER_KW = 1.3596216173
+# Common Cyrillic lookalikes that can appear when VINs are copied/typed with a RU keyboard.
+_CYRILLIC_VIN_TRANSLATION = str.maketrans(
+    {
+        "А": "A",
+        "В": "B",
+        "С": "C",
+        "Е": "E",
+        "Н": "H",
+        "К": "K",
+        "М": "M",
+        "Р": "P",
+        "Т": "T",
+        "Х": "X",
+        "а": "A",
+        "в": "B",
+        "с": "C",
+        "е": "E",
+        "н": "H",
+        "к": "K",
+        "м": "M",
+        "р": "P",
+        "т": "T",
+        "х": "X",
+    }
+)
 
 
 class VinDecodeStatus(StrEnum):
@@ -43,6 +68,8 @@ class VinDecodeResult:
     engine_kw: float | None = None
     horse_power: float | None = None
     horse_power_source: str | None = None
+    electric_power_kw: float | None = None
+    electric_power_kw_source: str | None = None
     drive_type: str | None = None
     transmission_style: str | None = None
     plant_country: str | None = None
@@ -60,7 +87,7 @@ _cache_lock = asyncio.Lock()
 
 
 def normalize_vin(vin: str) -> str:
-    return vin.strip().upper().replace(" ", "")
+    return vin.translate(_CYRILLIC_VIN_TRANSLATION).strip().upper().replace(" ", "")
 
 
 def validate_vin(vin: str) -> bool:
@@ -112,7 +139,24 @@ def _resolve_powertrain(row: dict[str, Any]) -> PowertrainKind | None:
     return None
 
 
+def _known_trim_from_vin(vin: str, make: str | None, model: str | None, model_year: int | None) -> tuple[str | None, str | None]:
+    normalized_make = (make or "").strip().casefold()
+    normalized_model = (model or "").strip().casefold()
+    # Tesla manufacturer/VIN-pattern data identifies 7SAYGDEF + model-year code
+    # as Model Y Performance for the pre-Juniper US-market generation.
+    if (
+        normalized_make == "tesla"
+        and normalized_model == "model y"
+        and vin.startswith("7SAYGDEF")
+        and model_year is not None
+        and 2022 <= model_year <= 2025
+    ):
+        return "Performance AWD", "AWD/All-Wheel Drive"
+    return None, None
+
+
 def parse_vpic_result(payload: dict[str, Any], vin: str) -> VinDecodeResult:
+    vin = normalize_vin(vin)
     results = payload.get("Results")
     if not isinstance(results, list) or not results or not isinstance(results[0], dict):
         return VinDecodeResult(
@@ -139,6 +183,10 @@ def parse_vpic_result(payload: dict[str, Any], vin: str) -> VinDecodeResult:
             error_text=error_text or "VIN could not be decoded",
         )
 
+    known_trim, known_drive = _known_trim_from_vin(vin, make, model, model_year)
+    if trim is None and known_trim is not None:
+        trim = known_trim
+
     displacement_l = _float(row.get("DisplacementL"))
     displacement_cc = _int(row.get("DisplacementCC"))
     if displacement_cc is None and displacement_l is not None:
@@ -150,8 +198,6 @@ def parse_vpic_result(payload: dict[str, Any], vin: str) -> VinDecodeResult:
     horse_power = _float(row.get("EngineHP"))
     horse_power_source = "nhtsa_engine_hp" if horse_power is not None else None
 
-    # vPIC exposes an EngineHP_to field as well. Some manufacturer records fill
-    # only this side of the horsepower range, so do not discard it.
     if horse_power is None:
         horse_power = _float(row.get("EngineHP_to"))
         if horse_power is not None:
@@ -159,10 +205,10 @@ def parse_vpic_result(payload: dict[str, Any], vin: str) -> VinDecodeResult:
 
     if horse_power is None and engine_kw is not None:
         horse_power = round(engine_kw * METRIC_HP_PER_KW, 2)
-        horse_power_source = "nhtsa_engine_kw"
+        horse_power_source = "nhtsa_engine_kw_reference"
 
-    # NHTSA often identifies the exact vehicle but omits power. For curated
-    # vehicles, reuse our verified spec catalog rather than leaving the field blank.
+    # Curated horsepower is useful as a reference for ICE vehicles. For EVs it
+    # must never be treated as the Russian regulatory 30-minute traction power.
     if horse_power is None:
         spec = resolve_vehicle_spec_by_identity(
             make=make,
@@ -180,20 +226,37 @@ def parse_vpic_result(payload: dict[str, Any], vin: str) -> VinDecodeResult:
                 if powertrain_kind == "EV":
                     displacement_cc = 0
 
-    complete_for_calculator = bool(
-        make
-        and model
-        and model_year
-        and horse_power
-        and (powertrain_kind == "EV" or (displacement_cc is not None and displacement_cc > 0))
-    )
+    # vPIC's EngineKW/EngineHP are not guaranteed to be the maximum 30-minute
+    # traction power required by Russian EV excise/recycling rules. Keep the
+    # regulatory field empty unless a future authoritative provider supplies it.
+    electric_power_kw = None
+    electric_power_kw_source = None
+
+    if powertrain_kind in ("EV", "SERIES_HYBRID"):
+        complete_for_calculator = bool(make and model and model_year and electric_power_kw)
+    else:
+        complete_for_calculator = bool(
+            make
+            and model
+            and model_year
+            and horse_power
+            and displacement_cc is not None
+            and displacement_cc > 0
+        )
+
     status = VinDecodeStatus.COMPLETE if complete_for_calculator else VinDecodeStatus.PARTIAL
     warning = None
     if status == VinDecodeStatus.PARTIAL:
-        warning = (
-            "VIN decoded partially. Review missing calculator fields manually. "
-            "NHTSA vPIC can be incomplete for vehicles not intended for the U.S. market."
-        )
+        if powertrain_kind in ("EV", "SERIES_HYBRID"):
+            warning = (
+                "VIN decoded. Russian EV calculations require the maximum 30-minute traction power "
+                "from OTTS/SBKTS/ZOETS/EPTS; advertised or peak power is not substituted automatically."
+            )
+        else:
+            warning = (
+                "VIN decoded partially. Review missing calculator fields manually. "
+                "NHTSA vPIC can be incomplete for vehicles not intended for the U.S. market."
+            )
 
     return VinDecodeResult(
         status=status,
@@ -214,7 +277,9 @@ def parse_vpic_result(payload: dict[str, Any], vin: str) -> VinDecodeResult:
         engine_kw=engine_kw,
         horse_power=horse_power,
         horse_power_source=horse_power_source,
-        drive_type=_text(row.get("DriveType")),
+        electric_power_kw=electric_power_kw,
+        electric_power_kw_source=electric_power_kw_source,
+        drive_type=_text(row.get("DriveType")) or known_drive,
         transmission_style=_text(row.get("TransmissionStyle")),
         plant_country=_text(row.get("PlantCountry")),
         plant_city=_text(row.get("PlantCity")),
