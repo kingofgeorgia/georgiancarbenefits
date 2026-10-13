@@ -81,18 +81,22 @@ async def calculate_total(payload: CalculatorRequest):
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
-    precise = calculatePersonalImportCustoms(
-        {
-            "price": payload.car_price_usd,
-            "currencyToRubRate": snapshot.rates["USD"],
-            "eurToRubRate": snapshot.rates["EUR"],
-            "engineCc": payload.engine_volume_cc,
-            "horsePower": payload.horse_power,
-            "ageYears": vehicle_age.age_years,
-            "isPersonalUse": payload.is_personal_use,
-            "powertrainKind": payload.powertrain_kind,
-        }
-    )
+    try:
+        precise = calculatePersonalImportCustoms(
+            {
+                "price": payload.car_price_usd,
+                "currencyToRubRate": snapshot.rates["USD"],
+                "eurToRubRate": snapshot.rates["EUR"],
+                "engineCc": payload.engine_volume_cc,
+                "horsePower": payload.horse_power,
+                "electricPowerKw": payload.electric_power_kw,
+                "ageYears": vehicle_age.age_years,
+                "isPersonalUse": payload.is_personal_use,
+                "powertrainKind": payload.powertrain_kind,
+            }
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     car_price_rub = round(payload.car_price_usd * snapshot.rates["USD"], 2)
     customs_total_rub = precise["total"]
@@ -151,6 +155,8 @@ async def calculate_total(payload: CalculatorRequest):
         customs_total_rub=customs_total_rub,
         logistics_cost_rub=payload.logistics_cost_rub,
         total_cost_rub=total,
+        power_kw_used=precise["details"]["powerKwUsed"],
+        power_basis=precise["details"]["powerBasis"],
         savings_vs_rf_rub=savings,
         deal_assessment=deal_assessment,
         market_comparison=market_comparison,
