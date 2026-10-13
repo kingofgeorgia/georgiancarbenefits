@@ -24,6 +24,11 @@ All notable changes to this project will be documented in this file.
 - MileON lead-generation CTA with prefilled vehicle/calculation context.
 - Configurable `NEXT_PUBLIC_MILEON_CONTACT_URL` for production lead routing.
 - Deal Score formula and API documentation.
+- Official Auto.ru Business Appraisal.API provider for automatic Russia-market comparison.
+- Russia-market comparison metadata: sample size, market boundaries, mileage-adjusted average, middle-band midpoint, source and check time.
+- Explicit market-provider statuses so market-data failures never block customs calculations.
+- Market-provider regression tests based on the documented Auto.ru Business appraisal response.
+- Russian-market provider setup and data-policy documentation.
 - GitHub Actions CI for backend, frontend and PowerShell syntax.
 - Frontend typecheck script.
 
@@ -32,9 +37,13 @@ All notable changes to this project will be documented in this file.
 - myauto make/model/from-URL flows can support the public calculator without login.
 - Catalog estimates now use the same canonical calculation engine as the calculator.
 - Saved history now uses and stores the same calculation path shown to the user.
-- Calculator UI now collects horsepower, powertrain type and optional manufacture date.
+- Calculator UI now collects horsepower, powertrain type, optional manufacture date and optional mileage.
 - Results display customs processing fee, total customs cost, age-estimation warning, tariff version and exchange-rate source metadata.
 - Russia-market reference price now powers a structured Deal Score while preserving `savings_vs_rf_rub` compatibility.
+- When no manual reference is supplied, the calculator can automatically obtain a Russia-market reference from Auto.ru Business.
+- Manual Russia-market price is now an explicit override over automatic market appraisal.
+- Deal Score results identify whether the reference was manual or supplied by Auto.ru Business.
+- Appraisal.API median is no longer implied: statistical median remains `null`; middle-band midpoint is exposed under its own name.
 - Pure EVs no longer pass through the ICE EUR/cc unified-rate formula.
 - Corrected 2026 low-power recycling coefficients for 3001–3500 cc and >3500 cc personal imports.
 - Exchange rates no longer silently fall back to hard-coded RUB values.
@@ -47,5 +56,6 @@ All notable changes to this project will be documented in this file.
 
 ### Planned
 - Expand curated/learned vehicle specification coverage.
-- Automatic Russian-market comparable provider (for example Auto.ru) with source/sample metadata.
+- Improve comparable matching with richer generation/body/engine attributes.
+- Persist market-comparison snapshots in authenticated history.
 - Production observability, external backups and automated deployment.

@@ -2,7 +2,7 @@
 
 Full-stack Georgia → Russia car import calculator built with FastAPI, Next.js, PostgreSQL and Docker.
 
-The application estimates the total cost of buying a vehicle in Georgia and importing it to Russia for personal use. It combines vehicle price, customs fees, unified customs duty, recycling fee, logistics and optional Russia-market comparison.
+The application estimates the total cost of buying a vehicle in Georgia and importing it to Russia for personal use. It combines vehicle price, customs fees, unified customs duty, recycling fee, logistics and Russia-market comparison.
 
 > **Important:** calculations are estimates. Customs and recycling rules change over time and must be verified against official sources for the actual declaration date.
 
@@ -14,7 +14,9 @@ The application estimates the total cost of buying a vehicle in Georgia and impo
 - ICE, hybrid, series-hybrid and EV calculation paths
 - Official Bank of Russia exchange rates with source/staleness metadata
 - myauto.ge vehicle import workflow
-- Comparison with an equivalent vehicle price in Russia
+- Optional automatic Russia-market appraisal through official Auto.ru Business Appraisal.API
+- Comparable-market metadata: sample size, market boundaries, mileage-adjusted average, source and check time
+- Manual Russia-market price override for controlled scenarios
 - MileON Deal Score (0–100), savings percentage and market-position rating
 - MileON lead CTA with prefilled calculation and vehicle context
 - Authenticated calculation history
@@ -22,7 +24,7 @@ The application estimates the total cost of buying a vehicle in Georgia and impo
 - Docker-based local and production environments
 - Backend/frontend/PowerShell/production-Docker CI checks
 
-The current Russia-market reference price is entered manually. Automatic comparable collection is intentionally kept as a separate provider layer so a manual number is never presented as automatically verified market data.
+Automatic market comparison is optional and requires authorized Auto.ru Business API access. Without a token, customs/import calculations continue to work and the UI reports that the market provider is not configured.
 
 ## Stack
 
@@ -89,6 +91,16 @@ Frontend: `http://localhost:3000`
 
 API docs: `http://localhost:8000/docs`
 
+### Optional Auto.ru Business market comparison
+
+Obtain authorized Auto.ru Business API access and set the issued token only in your local/deployment environment:
+
+```env
+AUTO_RU_BUSINESS_TOKEN=<secret token>
+```
+
+The default configuration intentionally restricts market appraisal to `auto_ru` listings. See [`docs/russian-market-provider.md`](docs/russian-market-provider.md) for provider behavior, reference-price policy and status handling.
+
 ## Production Docker
 
 Production is isolated from the development Compose stack.
@@ -96,6 +108,7 @@ Production is isolated from the development Compose stack.
 ```bash
 cp .env.production.example .env.production
 # Edit APP_DOMAIN, FRONTEND_ORIGIN, SECRET_KEY and POSTGRES_PASSWORD.
+# Optionally set AUTO_RU_BUSINESS_TOKEN for automatic Russia-market comparison.
 
 docker compose --env-file .env.production -f docker-compose.prod.yml config
 docker compose --env-file .env.production -f docker-compose.prod.yml build
@@ -111,7 +124,8 @@ In production:
 - FastAPI and Next.js are reachable only through the internal Docker network;
 - Caddy terminates HTTPS and proxies `/api/*` to FastAPI;
 - the backend refuses unsafe production secrets/origins;
-- `NEXT_PUBLIC_MILEON_CONTACT_URL` controls the public MileON CTA destination.
+- `NEXT_PUBLIC_MILEON_CONTACT_URL` controls the public MileON CTA destination;
+- Auto.ru Business credentials remain server-side environment secrets.
 
 See [`docs/production.md`](docs/production.md) for the complete deployment, update, backup and verification procedure.
 
@@ -155,7 +169,9 @@ It calculates and records:
 - tariff ruleset version;
 - exchange-rate source and effective date.
 
-When a Russia-market reference price is supplied, `backend/app/services/deal_score.py` additionally calculates:
+`backend/app/services/russian_market.py` optionally resolves the loaded myauto.ge vehicle against the official Auto.ru Business catalog and obtains comparable-market appraisal metadata. A manual Russia-market price takes precedence when explicitly supplied.
+
+When a Russia-market reference price is available, `backend/app/services/deal_score.py` additionally calculates:
 
 - savings in RUB;
 - savings percentage;
@@ -163,7 +179,7 @@ When a Russia-market reference price is supplied, `backend/app/services/deal_sco
 - qualitative deal rating;
 - market position (below / at / above market).
 
-See [`docs/deal-score.md`](docs/deal-score.md) for the exact formula and rating thresholds.
+See [`docs/deal-score.md`](docs/deal-score.md) for the exact scoring formula and [`docs/russian-market-provider.md`](docs/russian-market-provider.md) for automatic market-data rules.
 
 The public calculator endpoint is:
 
@@ -175,7 +191,7 @@ A one-off calculation does not require authentication. User-specific functionali
 
 ## Testing
 
-Regression tests cover representative calculation scenarios and boundary conditions, including Deal Score behavior. CI also validates the frontend build, PowerShell local-start script and production Docker configuration/images.
+Regression tests cover representative customs scenarios, boundary conditions, Deal Score behavior and normalization of documented Auto.ru Business appraisal responses. CI also validates the frontend build, PowerShell local-start script and production Docker configuration/images.
 
 Run backend checks locally:
 
@@ -205,7 +221,8 @@ georgiancarbenefits/
 │   ├── calculation-rules.md
 │   ├── deal-score.md
 │   ├── legal-sources.md
-│   └── production.md
+│   ├── production.md
+│   └── russian-market-provider.md
 ├── Caddyfile
 ├── start-local.ps1
 ├── docker-compose.yml
@@ -216,16 +233,18 @@ georgiancarbenefits/
 
 ## Security
 
-- Never commit `.env`, `.env.production` or production secrets.
+- Never commit `.env`, `.env.production`, API tokens or production secrets.
 - Production rejects weak JWT/database credentials and non-HTTPS frontend origins.
 - PostgreSQL has no published production host port.
 - Production application containers run behind Caddy rather than being exposed directly.
 - Treat external vehicle, market-price and exchange-rate data as untrusted input.
+- Do not replace the official Auto.ru Business integration with unauthorized public-page scraping.
 
 ## Roadmap
 
 - expand curated/learned vehicle specification coverage;
-- add automatic Russian-market comparable search with source/sample metadata;
+- improve comparable matching with richer generation/body/engine attributes when available from source data;
+- persist market-comparison snapshots in authenticated history;
 - add production observability, backups and automated deployment;
 - add branch protection / required CI checks for `main`.
 

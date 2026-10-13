@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import type { CalculatorResult, CarListing, DealRating } from "@/lib/types";
 import {
   AlertTriangle,
+  BarChart3,
   Gauge,
   MessageCircle,
   TrendingDown,
@@ -19,6 +20,10 @@ function fmt(n: number) {
     currency: "RUB",
     maximumFractionDigits: 0,
   }).format(n);
+}
+
+function fmtKm(n: number) {
+  return `${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(n)} km`;
 }
 
 interface Props {
@@ -44,6 +49,7 @@ function buildContactUrl(message: string) {
 export function CalculatorResults({ result, vehicle }: Props) {
   const t = useTranslations("calculator.results");
   const deal = result.deal_assessment;
+  const market = result.market_comparison;
   const hasSavings = result.savings_vs_rf_rub != null;
   const isProfit = hasSavings && result.savings_vs_rf_rub! > 0;
   const isAggregate = result.customs_payment_kind === "AGGREGATE_PAYMENT";
@@ -89,6 +95,49 @@ export function CalculatorResults({ result, vehicle }: Props) {
         <Separator />
         <Row label={t("total")} value={fmt(result.total_cost_rub)} bold />
 
+        {market && (
+          <div className="mt-5 space-y-3 rounded-xl border bg-blue-50/40 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 font-semibold">
+                <BarChart3 className="h-5 w-5" />
+                <span>{t("marketComparisonTitle")}</span>
+              </div>
+              <Badge variant="outline">{market.source}</Badge>
+            </div>
+
+            {market.status === "AVAILABLE" ? (
+              <>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {market.similar_count != null && <Row label={t("marketSimilarCount")} value={String(market.similar_count)} />}
+                  {market.average_mileage_km != null && <Row label={t("marketAverageMileage")} value={fmtKm(market.average_mileage_km)} />}
+                  {market.min_price_rub != null && <Row label={t("marketMinPrice")} value={fmt(market.min_price_rub)} />}
+                  {market.average_price_rub != null && <Row label={t("marketAveragePrice")} value={fmt(market.average_price_rub)} />}
+                  {market.market_midpoint_rub != null && <Row label={t("marketMidpointPrice")} value={fmt(market.market_midpoint_rub)} />}
+                  {market.max_price_rub != null && <Row label={t("marketMaxPrice")} value={fmt(market.max_price_rub)} />}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {market.is_mileage_adjusted ? t("marketMileageAdjusted") : t("marketMileageNotAdjusted")}
+                </p>
+                <p className="text-xs text-muted-foreground">{t("marketMedianUnavailable")}</p>
+                {market.removed_params.length > 0 && (
+                  <div className="flex gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <span>{t("marketRemovedParams", { params: market.removed_params.join(", ") })}</span>
+                  </div>
+                )}
+                <div className="text-xs text-muted-foreground">
+                  {t("marketCheckedAt")}: {new Date(market.checked_at).toLocaleString()}
+                </div>
+              </>
+            ) : (
+              <div className="flex gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>{t(`marketStatus.${market.status}`)}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {deal ? (
           <div className="mt-5 space-y-4 rounded-xl border bg-muted/30 p-4">
             <div className="flex items-center justify-between gap-3">
@@ -115,6 +164,12 @@ export function CalculatorResults({ result, vehicle }: Props) {
                 label={t("marketPosition")}
                 value={t(`marketPositionValue.${deal.market_position}`)}
               />
+              {result.deal_reference_source && (
+                <Row
+                  label={t("dealReferenceSource")}
+                  value={result.deal_reference_source === "MANUAL" ? t("dealReferenceManual") : t("dealReferenceAuto")}
+                />
+              )}
             </div>
 
             <div
