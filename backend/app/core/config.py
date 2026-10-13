@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     frontend_origin: str = "http://localhost:3000"
 
-    exchange_api_url: str = "https://api.exchangerate.host/live"
+    exchange_api_url: str = "https://www.cbr.ru/scripts/XML_daily.asp"
     exchange_cache_ttl_seconds: int = 3600
 
     myauto_api_url: str = "https://api2.myauto.ge/ka"

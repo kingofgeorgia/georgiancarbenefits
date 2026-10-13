@@ -17,6 +17,17 @@
     "carPriceUsd": "Car price (USD)",
     "engineVolume": "Engine volume (cc)",
     "carYear": "Year of manufacture",
+    "manufactureDate": "Exact manufacture date (optional)",
+    "manufactureDateHint": "If unknown, age is estimated from the model year and marked as approximate.",
+    "manufactureDateYearError": "Exact manufacture date must use the same year as the model year",
+    "horsePower": "Power (hp)",
+    "powertrainKind": "Powertrain",
+    "powertrain": {
+      "ice": "ICE",
+      "hybrid": "Hybrid",
+      "seriesHybrid": "Series hybrid",
+      "ev": "Electric vehicle"
+    },
     "logisticsCost": "Logistics Georgia → Russia (₽)",
     "rfAnalogPrice": "RF analog price (₽, optional)",
     "note": "Note (optional)",
@@ -28,12 +39,25 @@
     "results": {
       "title": "Calculation result",
       "carPrice": "Car price in rubles",
-      "customsDuty": "Customs duty",
+      "customsFee": "Customs processing fee",
+      "customsDuty": "Unified customs rate",
+      "importDuty": "Import duty",
+      "excise": "Excise tax",
+      "vat": "VAT",
+      "aggregatePayment": "Aggregate customs payment",
       "recyclingFee": "Recycling fee",
+      "customsTotal": "Total customs cost",
       "logistics": "Logistics",
       "total": "Total cost",
       "savings": "Savings vs RF price",
-      "overpay": "Overpay vs RF price"
+      "overpay": "Overpay vs RF price",
+      "profitable": "Good deal!",
+      "notProfitable": "Not profitable",
+      "ageEstimated": "Exact manufacture date is not provided. Vehicle age is estimated from the model year; customs may change near the 3- or 5-year boundary.",
+      "rateSource": "Exchange-rate source",
+      "staleRate": "last available cached rate used",
+      "manufactureDateUsed": "Manufacture date used",
+      "ruleVersion": "Rule version"
     }
   },
   "rates": {
