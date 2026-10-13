@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.services.deal_score import DealRating, MarketPosition
 from app.services.personal_import_customs import CustomsPaymentKind, PowertrainKind
@@ -12,7 +12,8 @@ class CalculatorRequest(BaseModel):
     engine_volume_cc: int
     car_year: int
     manufacture_date: date | None = None
-    horse_power: float
+    horse_power: float | None = None
+    electric_power_kw: float | None = None
     mileage_km: int | None = None
     source_make: str | None = None
     source_model: str | None = None
@@ -23,6 +24,18 @@ class CalculatorRequest(BaseModel):
     rf_analog_price_rub: float | None = None
     auto_market_comparison: bool = True
     note: str | None = None
+
+    @model_validator(mode="after")
+    def validate_power_for_powertrain(self):
+        powertrain = self.powertrain_kind or "ICE"
+        if powertrain in ("EV", "SERIES_HYBRID"):
+            if self.electric_power_kw is None or self.electric_power_kw <= 0:
+                raise ValueError(
+                    "electric_power_kw (maximum 30-minute traction power) is required for EV and series-hybrid calculations"
+                )
+        elif self.horse_power is None or self.horse_power <= 0:
+            raise ValueError("horse_power is required for ICE and other-hybrid calculations")
+        return self
 
 
 class CurrencyRates(BaseModel):
@@ -80,6 +93,8 @@ class CalculatorResult(BaseModel):
     customs_total_rub: float
     logistics_cost_rub: float
     total_cost_rub: float
+    power_kw_used: float
+    power_basis: str
     savings_vs_rf_rub: float | None = None
     deal_assessment: DealAssessmentOut | None = None
     market_comparison: MarketComparisonOut | None = None
@@ -100,6 +115,7 @@ class CalculationOut(BaseModel):
     car_year: int
     manufacture_date: date | None = None
     horse_power: float | None = None
+    electric_power_kw: float | None = None
     util_coefficient: float | None = None
     powertrain_kind: PowertrainKind | None = None
     is_personal_use: bool = True
