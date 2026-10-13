@@ -36,12 +36,17 @@ export function Calculator() {
       z.string().nullable().optional(),
     ),
     horse_power: z.coerce.number().positive(tErr("required")),
+    mileage_km: z.preprocess(
+      (value) => value === "" || value == null ? null : Number(value),
+      z.number().int().min(0).nullable().optional(),
+    ),
     powertrain_kind: z.enum(["ICE", "OTHER_HYBRID", "EV", "SERIES_HYBRID"]),
     logistics_cost_rub: z.coerce.number().min(0),
     rf_analog_price_rub: z.preprocess(
       (value) => value === "" || value == null ? null : Number(value),
       z.number().positive().nullable().optional(),
     ),
+    auto_market_comparison: z.boolean(),
     note: z.preprocess(
       (value) => value === "" ? null : value,
       z.string().nullable().optional(),
@@ -61,10 +66,17 @@ export function Calculator() {
   type FormData = z.infer<typeof schema>;
   const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { logistics_cost_rub: 170000, powertrain_kind: "ICE", manufacture_date: null },
+    defaultValues: {
+      logistics_cost_rub: 170000,
+      powertrain_kind: "ICE",
+      manufacture_date: null,
+      mileage_km: null,
+      auto_market_comparison: true,
+    },
   });
 
   const powertrainKind = watch("powertrain_kind");
+  const autoMarketComparison = watch("auto_market_comparison");
 
   const urlMutation = useMutation({
     mutationFn: (url: string) => api.post<CarListing>("/cars/from-url", { url }).then((r) => r.data),
@@ -74,6 +86,7 @@ export function Calculator() {
       setValue("engine_volume_cc", car.powertrain_kind === "EV" ? 0 : car.engine_volume_cc);
       setValue("car_year", car.year);
       setValue("manufacture_date", null);
+      setValue("mileage_km", car.mileage_km ?? null);
       if (car.horse_power) setValue("horse_power", car.horse_power);
       setValue("powertrain_kind", car.powertrain_kind ?? "ICE");
       toast.success(`${car.make} ${car.model} ${car.year} — данные загружены`);
@@ -96,6 +109,7 @@ export function Calculator() {
     const payload: CalculatorRequest = {
       ...data,
       manufacture_date: data.manufacture_date ?? null,
+      mileage_km: data.mileage_km ?? null,
       engine_volume_cc: data.powertrain_kind === "EV" ? 0 : data.engine_volume_cc,
       powertrain_kind: data.powertrain_kind as PowertrainKind,
       is_personal_use: true,
@@ -103,6 +117,7 @@ export function Calculator() {
       source_model: loadedCar?.model ?? null,
       source_model_id: loadedCar?.model_id ?? null,
       rf_analog_price_rub: data.rf_analog_price_rub ?? null,
+      auto_market_comparison: data.auto_market_comparison,
       note: data.note ?? null,
     };
     lastPayloadRef.current = payload;
@@ -128,6 +143,7 @@ export function Calculator() {
                 <span className="text-green-800 font-medium">{loadedCar.make} {loadedCar.model} {loadedCar.year}</span>
                 <Badge variant="outline">${loadedCar.price_usd.toLocaleString()}</Badge>
                 {loadedCar.horse_power && <Badge variant="outline">{loadedCar.horse_power} hp</Badge>}
+                {loadedCar.mileage_km != null && <Badge variant="outline">{loadedCar.mileage_km.toLocaleString()} km</Badge>}
                 <a href={loadedCar.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs ml-auto">myauto.ge ↗</a>
                 <button type="button" onClick={() => { setLoadedCar(null); setCarUrl(""); }}><X className="h-4 w-4 text-gray-400 hover:text-gray-700" /></button>
               </div>
@@ -146,6 +162,12 @@ export function Calculator() {
             </div>
             <div><Label>{t("horsePower")}</Label><Input type="number" step="0.01" {...register("horse_power")} />{errors.horse_power && <p className="text-sm text-red-500">{errors.horse_power.message}</p>}</div>
             <div>
+              <Label>{t("mileage")}</Label>
+              <Input type="number" step="1000" {...register("mileage_km")} />
+              <p className="text-xs text-muted-foreground mt-1">{t("mileageHint")}</p>
+              {errors.mileage_km && <p className="text-sm text-red-500">{errors.mileage_km.message}</p>}
+            </div>
+            <div>
               <Label>{t("powertrainKind")}</Label>
               <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm" {...register("powertrain_kind")}>
                 <option value="ICE">{t("powertrain.ice")}</option>
@@ -155,12 +177,25 @@ export function Calculator() {
               </select>
             </div>
             <div><Label>{t("logisticsCost")}</Label><Input type="number" step="1000" {...register("logistics_cost_rub")} /></div>
-            <div>
-              <Label>{t("rfAnalogPrice")}</Label>
-              <Input type="number" step="1000" {...register("rf_analog_price_rub")} />
-              <p className="text-xs text-muted-foreground mt-1">{t("rfAnalogPriceHint")}</p>
-              {errors.rf_analog_price_rub && <p className="text-sm text-red-500">{errors.rf_analog_price_rub.message}</p>}
+
+            <div className="md:col-span-2 rounded-lg border p-3 space-y-3">
+              <label className="flex items-start gap-3 text-sm cursor-pointer">
+                <input type="checkbox" className="mt-1 h-4 w-4" {...register("auto_market_comparison")} />
+                <span>
+                  <span className="font-medium">{t("autoMarketComparison")}</span>
+                  <span className="block text-xs text-muted-foreground mt-1">{t("autoMarketComparisonHint")}</span>
+                </span>
+              </label>
+              <div>
+                <Label>{t("rfAnalogPrice")}</Label>
+                <Input type="number" step="1000" {...register("rf_analog_price_rub")} />
+                <p className="text-xs text-muted-foreground mt-1">
+                  {autoMarketComparison ? t("rfAnalogPriceOverrideHint") : t("rfAnalogPriceHint")}
+                </p>
+                {errors.rf_analog_price_rub && <p className="text-sm text-red-500">{errors.rf_analog_price_rub.message}</p>}
+              </div>
             </div>
+
             <div><Label>{t("note")}</Label><Input {...register("note")} /></div>
             <div className="md:col-span-2 flex gap-3">
               <Button type="submit" disabled={calcMutation.isPending}>{calcMutation.isPending ? "..." : t("calculate")}</Button>
