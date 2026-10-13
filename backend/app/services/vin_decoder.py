@@ -9,6 +9,7 @@ import httpx
 
 from app.core.config import settings
 from app.services.personal_import_customs import PowertrainKind
+from app.services.vehicle_specs import resolve_vehicle_spec_by_identity
 
 
 VIN_RE = re.compile(r"^[A-HJ-NPR-Z0-9]{17}$")
@@ -41,6 +42,7 @@ class VinDecodeResult:
     displacement_cc: int | None = None
     engine_kw: float | None = None
     horse_power: float | None = None
+    horse_power_source: str | None = None
     drive_type: str | None = None
     transmission_style: str | None = None
     plant_country: str | None = None
@@ -125,6 +127,8 @@ def parse_vpic_result(payload: dict[str, Any], vin: str) -> VinDecodeResult:
     make = _text(row.get("Make"))
     model = _text(row.get("Model"))
     model_year = _int(row.get("ModelYear"))
+    trim = _text(row.get("Trim"))
+    series = _text(row.get("Series"))
     powertrain_kind = _resolve_powertrain(row)
 
     if not any((make, model, model_year)):
@@ -144,8 +148,37 @@ def parse_vpic_result(payload: dict[str, Any], vin: str) -> VinDecodeResult:
 
     engine_kw = _float(row.get("EngineKW"))
     horse_power = _float(row.get("EngineHP"))
+    horse_power_source = "nhtsa_engine_hp" if horse_power is not None else None
+
+    # vPIC exposes an EngineHP_to field as well. Some manufacturer records fill
+    # only this side of the horsepower range, so do not discard it.
+    if horse_power is None:
+        horse_power = _float(row.get("EngineHP_to"))
+        if horse_power is not None:
+            horse_power_source = "nhtsa_engine_hp_to"
+
     if horse_power is None and engine_kw is not None:
         horse_power = round(engine_kw * METRIC_HP_PER_KW, 2)
+        horse_power_source = "nhtsa_engine_kw"
+
+    # NHTSA often identifies the exact vehicle but omits power. For curated
+    # vehicles, reuse our verified spec catalog rather than leaving the field blank.
+    if horse_power is None:
+        spec = resolve_vehicle_spec_by_identity(
+            make=make,
+            model=model,
+            year=model_year,
+            engine_cc=displacement_cc,
+            trim=trim,
+            series=series,
+        )
+        if spec is not None:
+            horse_power = float(spec.horse_power)
+            horse_power_source = spec.source
+            if powertrain_kind is None and spec.powertrain_kind is not None:
+                powertrain_kind = spec.powertrain_kind
+                if powertrain_kind == "EV":
+                    displacement_cc = 0
 
     complete_for_calculator = bool(
         make
@@ -168,8 +201,8 @@ def parse_vpic_result(payload: dict[str, Any], vin: str) -> VinDecodeResult:
         make=make,
         model=model,
         model_year=model_year,
-        trim=_text(row.get("Trim")),
-        series=_text(row.get("Series")),
+        trim=trim,
+        series=series,
         manufacturer=_text(row.get("Manufacturer")),
         body_class=_text(row.get("BodyClass")),
         vehicle_type=_text(row.get("VehicleType")),
@@ -180,6 +213,7 @@ def parse_vpic_result(payload: dict[str, Any], vin: str) -> VinDecodeResult:
         displacement_cc=displacement_cc,
         engine_kw=engine_kw,
         horse_power=horse_power,
+        horse_power_source=horse_power_source,
         drive_type=_text(row.get("DriveType")),
         transmission_style=_text(row.get("TransmissionStyle")),
         plant_country=_text(row.get("PlantCountry")),
