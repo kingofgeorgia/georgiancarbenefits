@@ -20,6 +20,10 @@ All notable changes to this project will be documented in this file.
 - Production Docker Compose stack with Caddy HTTPS reverse proxy and internal-only database/application ports.
 - Production environment template and deployment/backup documentation.
 - Production configuration tests and production-Docker CI validation.
+- MileON Deal Score with savings percentage, rating and Russia-market position.
+- MileON lead-generation CTA with prefilled vehicle/calculation context.
+- Configurable `NEXT_PUBLIC_MILEON_CONTACT_URL` for production lead routing.
+- Deal Score formula and API documentation.
 - GitHub Actions CI for backend, frontend and PowerShell syntax.
 - Frontend typecheck script.
 
@@ -30,6 +34,7 @@ All notable changes to this project will be documented in this file.
 - Saved history now uses and stores the same calculation path shown to the user.
 - Calculator UI now collects horsepower, powertrain type and optional manufacture date.
 - Results display customs processing fee, total customs cost, age-estimation warning, tariff version and exchange-rate source metadata.
+- Russia-market reference price now powers a structured Deal Score while preserving `savings_vs_rf_rub` compatibility.
 - Pure EVs no longer pass through the ICE EUR/cc unified-rate formula.
 - Corrected 2026 low-power recycling coefficients for 3001–3500 cc and >3500 cc personal imports.
 - Exchange rates no longer silently fall back to hard-coded RUB values.
@@ -42,5 +47,5 @@ All notable changes to this project will be documented in this file.
 
 ### Planned
 - Expand curated/learned vehicle specification coverage.
-- Russian-market comparable search, deal score and MileON lead-generation CTA.
+- Automatic Russian-market comparable provider (for example Auto.ru) with source/sample metadata.
 - Production observability, external backups and automated deployment.
