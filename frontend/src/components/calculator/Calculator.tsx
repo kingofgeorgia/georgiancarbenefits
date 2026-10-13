@@ -31,6 +31,10 @@ export function Calculator() {
     car_price_usd: z.coerce.number().positive(tErr("required")),
     engine_volume_cc: z.coerce.number().int().min(0),
     car_year: z.coerce.number().int().min(1990).max(currentYear),
+    manufacture_date: z.preprocess(
+      (value) => value === "" || value == null ? null : String(value),
+      z.string().nullable().optional(),
+    ),
     horse_power: z.coerce.number().positive(tErr("required")),
     powertrain_kind: z.enum(["ICE", "OTHER_HYBRID", "EV", "SERIES_HYBRID"]),
     logistics_cost_rub: z.coerce.number().min(0),
@@ -44,22 +48,20 @@ export function Calculator() {
     ),
   }).superRefine((data, ctx) => {
     if (data.powertrain_kind !== "EV" && data.engine_volume_cc <= 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["engine_volume_cc"],
-        message: tErr("required"),
-      });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["engine_volume_cc"], message: tErr("required") });
+    }
+    if (data.manufacture_date) {
+      const parsed = new Date(`${data.manufacture_date}T00:00:00`);
+      if (Number.isNaN(parsed.getTime()) || parsed.getFullYear() !== data.car_year) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["manufacture_date"], message: t("manufactureDateYearError") });
+      }
     }
   });
 
   type FormData = z.infer<typeof schema>;
-
   const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      logistics_cost_rub: 170000,
-      powertrain_kind: "ICE",
-    },
+    defaultValues: { logistics_cost_rub: 170000, powertrain_kind: "ICE", manufacture_date: null },
   });
 
   const powertrainKind = watch("powertrain_kind");
@@ -71,6 +73,7 @@ export function Calculator() {
       setValue("car_price_usd", car.price_usd);
       setValue("engine_volume_cc", car.powertrain_kind === "EV" ? 0 : car.engine_volume_cc);
       setValue("car_year", car.year);
+      setValue("manufacture_date", null);
       if (car.horse_power) setValue("horse_power", car.horse_power);
       setValue("powertrain_kind", car.powertrain_kind ?? "ICE");
       toast.success(`${car.make} ${car.model} ${car.year} — данные загружены`);
@@ -92,11 +95,13 @@ export function Calculator() {
   function onSubmit(data: FormData) {
     const payload: CalculatorRequest = {
       ...data,
+      manufacture_date: data.manufacture_date ?? null,
       engine_volume_cc: data.powertrain_kind === "EV" ? 0 : data.engine_volume_cc,
       powertrain_kind: data.powertrain_kind as PowertrainKind,
       is_personal_use: true,
       source_make: loadedCar?.make ?? null,
       source_model: loadedCar?.model ?? null,
+      source_model_id: loadedCar?.model_id ?? null,
       rf_analog_price_rub: data.rf_analog_price_rub ?? null,
       note: data.note ?? null,
     };
@@ -122,6 +127,7 @@ export function Calculator() {
               <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-md text-sm">
                 <span className="text-green-800 font-medium">{loadedCar.make} {loadedCar.model} {loadedCar.year}</span>
                 <Badge variant="outline">${loadedCar.price_usd.toLocaleString()}</Badge>
+                {loadedCar.horse_power && <Badge variant="outline">{loadedCar.horse_power} hp</Badge>}
                 <a href={loadedCar.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs ml-auto">myauto.ge ↗</a>
                 <button type="button" onClick={() => { setLoadedCar(null); setCarUrl(""); }}><X className="h-4 w-4 text-gray-400 hover:text-gray-700" /></button>
               </div>
@@ -132,14 +138,20 @@ export function Calculator() {
             <div><Label>{t("carPriceUsd")}</Label><Input type="number" step="0.01" {...register("car_price_usd")} />{errors.car_price_usd && <p className="text-sm text-red-500">{errors.car_price_usd.message}</p>}</div>
             <div><Label>{t("engineVolume")}</Label><Input type="number" disabled={powertrainKind === "EV"} {...register("engine_volume_cc")} />{errors.engine_volume_cc && <p className="text-sm text-red-500">{errors.engine_volume_cc.message}</p>}</div>
             <div><Label>{t("carYear")}</Label><Input type="number" min={1990} max={currentYear} {...register("car_year")} />{errors.car_year && <p className="text-sm text-red-500">{errors.car_year.message}</p>}</div>
-            <div><Label>Мощность, л.с.</Label><Input type="number" step="0.01" {...register("horse_power")} />{errors.horse_power && <p className="text-sm text-red-500">{errors.horse_power.message}</p>}</div>
             <div>
-              <Label>Тип силовой установки</Label>
+              <Label>{t("manufactureDate")}</Label>
+              <Input type="date" {...register("manufacture_date")} />
+              <p className="text-xs text-muted-foreground mt-1">{t("manufactureDateHint")}</p>
+              {errors.manufacture_date && <p className="text-sm text-red-500">{errors.manufacture_date.message}</p>}
+            </div>
+            <div><Label>{t("horsePower")}</Label><Input type="number" step="0.01" {...register("horse_power")} />{errors.horse_power && <p className="text-sm text-red-500">{errors.horse_power.message}</p>}</div>
+            <div>
+              <Label>{t("powertrainKind")}</Label>
               <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm" {...register("powertrain_kind")}>
-                <option value="ICE">ДВС</option>
-                <option value="OTHER_HYBRID">Гибрид</option>
-                <option value="SERIES_HYBRID">Последовательный гибрид</option>
-                <option value="EV">Электромобиль</option>
+                <option value="ICE">{t("powertrain.ice")}</option>
+                <option value="OTHER_HYBRID">{t("powertrain.hybrid")}</option>
+                <option value="SERIES_HYBRID">{t("powertrain.seriesHybrid")}</option>
+                <option value="EV">{t("powertrain.ev")}</option>
               </select>
             </div>
             <div><Label>{t("logisticsCost")}</Label><Input type="number" step="1000" {...register("logistics_cost_rub")} /></div>
