@@ -10,22 +10,22 @@ Auto.ru's public-site terms restrict automated extraction/collection of site inf
 
 Official documentation:
 
-- API overview: https://yandex.ru/support/autoru-business/ru/api/start
-- Appraisal API: https://yandex.ru/support/autoru-business/ru/api/price-appraisal
-- Simplified comparable appraisal: https://yandex.ru/support/autoru-business/ru/api/price-appraisal-simplified
-- Vehicle catalog endpoints: https://yandex.ru/support/autoru-business/ru/api/autocatalog
+- API overview: https://yandex.ru/support/autoru-business/ru/integrations/api
+- Appraisal API: https://yandex.ru/support/autoru-business/ru/integrations/appraisal-api/servise-methods/get-appraisal
+- Simplified comparable appraisal: https://yandex.ru/support/autoru-business/ru/integrations/appraisal-api/servise-methods/get-rating
+- Appraisal service/catalog reference: https://www.yandex.ru/support/autoru-business/ru/integrations/appraisal-api/service-methods-old
 
 ## Activation
 
 The provider is optional. Customs calculation continues to work when market comparison is not configured.
 
-Request authorized Auto.ru Business API access through the official Auto.ru Business process/support, then set the issued credential only in the deployment environment or secret store:
+Auto.ru Business documents OAuth 2.0 authorization and instructs integrators to obtain authorization data via `help@business.auto.ru` and implement the appropriate token-acquisition mechanism. This project accepts the resulting valid Bearer token from the deployment environment:
 
 ```env
-AUTO_RU_BUSINESS_TOKEN=<secret token>
+AUTO_RU_BUSINESS_TOKEN=<secret bearer token>
 ```
 
-Do not commit a real token to Git.
+Token acquisition/rotation should be handled by deployment secret management until a dedicated OAuth credential flow is added. Do not commit credentials or a real token to Git.
 
 Default provider settings:
 
@@ -52,7 +52,7 @@ When a calculation has no manual Russia-market override and automatic comparison
    - model ID;
    - model year;
    - optional mileage;
-   - all returned Russia region IDs;
+   - the Russia region set returned by the provider;
    - a liquidity region ID required for multi-region comparison;
    - `sources=auto_ru`;
    - configurable comparable threshold.
@@ -78,12 +78,14 @@ Auto.ru Business Appraisal.API does not expose a statistical median in the docum
 
 rather than inventing or mislabeling a value.
 
+The documented `low` and `high` values are market price-category boundaries, not claimed to be the literal cheapest and most expensive live listings.
+
 ## Response metadata
 
 Automatic comparison can return:
 
 - `reference_price_rub` and `reference_kind`;
-- lower and upper market boundaries;
+- lower and upper market-category boundaries;
 - mileage-adjusted average price when available;
 - midpoint of the middle price band;
 - number of similar listings;
@@ -115,4 +117,4 @@ Successful market comparisons are cached in-process using make, model, model yea
 
 The UI always identifies the market source and check time. It also warns when Auto.ru Business reports that comparison parameters were removed to widen the sample, because that can reduce precision.
 
-This market data is an asking-price appraisal and should be treated as a decision aid, not a guaranteed transaction price.
+This market appraisal is a decision aid and is not a guaranteed transaction price.
