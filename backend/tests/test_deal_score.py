@@ -15,7 +15,7 @@ def test_market_parity_scores_50() -> None:
     assert result.savings_rub == 0
     assert result.savings_percent == 0
     assert result.score == 50
-    assert result.rating == DealRating.WEAK
+    assert result.rating == DealRating.FAIR
     assert result.market_position == MarketPosition.AT_MARKET
 
 
