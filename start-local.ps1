@@ -90,7 +90,6 @@ if (-not $SkipBackup) {
     $containerId = (& docker compose ps -q postgres).Trim()
 
     $dumpCommand = 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fp -f ' + $containerBackupPath
-    $dumpCommand = $dumpCommand.Replace('\"', '"')
     Invoke-Checked docker compose exec -T postgres sh -lc $dumpCommand
     Invoke-Checked docker cp "${containerId}:$containerBackupPath" $backupPath
     Invoke-Checked docker compose exec -T postgres rm -f $containerBackupPath
