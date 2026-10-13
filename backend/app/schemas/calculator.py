@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.services.deal_score import DealRating, MarketPosition
 from app.services.personal_import_customs import CustomsPaymentKind, PowertrainKind
@@ -59,7 +59,7 @@ class MarketComparisonOut(BaseModel):
     max_price_rub: float | None = None
     similar_count: int | None = None
     average_mileage_km: float | None = None
-    removed_params: list[str] = []
+    removed_params: list[str] = Field(default_factory=list)
     is_mileage_adjusted: bool = False
     make: str | None = None
     model: str | None = None
