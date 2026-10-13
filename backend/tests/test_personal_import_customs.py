@@ -106,14 +106,14 @@ def test_low_power_used_ice_car_gets_0_26_coefficient() -> None:
     assert result["utilFee"] == 5200
 
 
-def test_ev_calculation_allows_zero_engine_volume() -> None:
+def test_ev_calculation_allows_zero_engine_volume_and_uses_30_minute_kw() -> None:
     result = calculatePersonalImportCustoms(
         {
             "price": 52_590,
             "currencyToRubRate": 91,
             "eurToRubRate": 98,
             "engineCc": 0,
-            "horsePower": 300,
+            "electricPowerKw": 153,
             "ageYears": 2,
             "isPersonalUse": True,
             "powertrainKind": "EV",
@@ -123,3 +123,5 @@ def test_ev_calculation_allows_zero_engine_volume() -> None:
     assert result["unifiedRate"] > 0
     assert result["utilCoefficient"] > 0
     assert result["details"]["powertrainKind"] == "EV"
+    assert result["details"]["powerKwUsed"] == 153
+    assert result["details"]["powerBasis"] == "MAX_30_MINUTE_ELECTRIC_POWER_KW"
