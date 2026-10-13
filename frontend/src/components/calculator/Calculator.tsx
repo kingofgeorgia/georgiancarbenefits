@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Link2, ScanLine, X } from "lucide-react";
+import { AlertTriangle, Link2, ScanLine, X } from "lucide-react";
 import { api } from "@/lib/api";
 import type { CalculatorRequest, CalculatorResult, CarListing, PowertrainKind, VinDecodeResult } from "@/lib/types";
 import { CalculatorResults } from "./CalculatorResults";
@@ -82,11 +82,12 @@ export function Calculator() {
   const vinMutation = useMutation({
     mutationFn: (value: string) => api.post<VinDecodeResult>("/cars/from-vin", { vin: value }).then((r) => r.data),
     onSuccess: (vehicle) => {
-      if (vehicle.status !== "AVAILABLE") {
+      if (vehicle.status === "NOT_FOUND" || vehicle.status === "PROVIDER_ERROR") {
         setDecodedVin(null);
         toast.error(vehicle.error_text ?? t("vinDecodeError"));
         return;
       }
+
       setDecodedVin(vehicle);
       if (vehicle.model_year) setValue("car_year", vehicle.model_year);
       if (vehicle.displacement_cc != null) setValue("engine_volume_cc", vehicle.displacement_cc);
@@ -95,7 +96,12 @@ export function Calculator() {
         setValue("powertrain_kind", vehicle.powertrain_kind);
         if (vehicle.powertrain_kind === "EV") setValue("engine_volume_cc", 0);
       }
-      toast.success(t("vinLoaded", { vehicle: [vehicle.make, vehicle.model, vehicle.model_year].filter(Boolean).join(" ") }));
+
+      if (vehicle.status === "PARTIAL") {
+        toast.warning(t("vinPartial"));
+      } else {
+        toast.success(t("vinLoaded", { vehicle: [vehicle.make, vehicle.model, vehicle.model_year].filter(Boolean).join(" ") }));
+      }
     },
     onError: () => toast.error(t("vinDecodeError")),
   });
@@ -163,13 +169,23 @@ export function Calculator() {
               </div>
               <p className="text-xs text-muted-foreground">{t("vinHint")}</p>
               {decodedVin && (
-                <div className="flex flex-wrap items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-md text-sm">
-                  <span className="text-blue-900 font-medium">{decodedVin.make} {decodedVin.model} {decodedVin.model_year}</span>
-                  {decodedVin.displacement_l != null && <Badge variant="outline">{decodedVin.displacement_l.toFixed(1)} L</Badge>}
-                  {decodedVin.horse_power != null && <Badge variant="outline">{Math.round(decodedVin.horse_power)} hp</Badge>}
-                  {decodedVin.fuel_type && <Badge variant="outline">{decodedVin.fuel_type}</Badge>}
-                  <span className="text-xs text-muted-foreground ml-auto">{decodedVin.source}</span>
-                  <button type="button" onClick={() => { setDecodedVin(null); setVin(""); }}><X className="h-4 w-4 text-gray-400 hover:text-gray-700" /></button>
+                <div className={`space-y-2 rounded-md border p-2 text-sm ${decodedVin.status === "PARTIAL" ? "border-amber-200 bg-amber-50" : "border-blue-200 bg-blue-50"}`}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">{decodedVin.make} {decodedVin.model} {decodedVin.model_year}</span>
+                    {decodedVin.trim && <Badge variant="outline">{decodedVin.trim}</Badge>}
+                    {decodedVin.series && <Badge variant="outline">{decodedVin.series}</Badge>}
+                    {decodedVin.displacement_l != null && decodedVin.powertrain_kind !== "EV" && <Badge variant="outline">{decodedVin.displacement_l.toFixed(1)} L</Badge>}
+                    {decodedVin.horse_power != null && <Badge variant="outline">{Math.round(decodedVin.horse_power)} hp</Badge>}
+                    {decodedVin.fuel_type && <Badge variant="outline">{decodedVin.fuel_type}</Badge>}
+                    <span className="text-xs text-muted-foreground ml-auto">{decodedVin.source}</span>
+                    <button type="button" onClick={() => { setDecodedVin(null); setVin(""); }}><X className="h-4 w-4 text-gray-400 hover:text-gray-700" /></button>
+                  </div>
+                  {decodedVin.status === "PARTIAL" && (
+                    <div className="flex gap-2 text-xs text-amber-900">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      <span>{t("vinPartialHint")}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
