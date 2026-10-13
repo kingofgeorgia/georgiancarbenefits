@@ -11,7 +11,9 @@ from app.services.vin_decoder import (
 
 def test_vin_validation_normalizes_case_and_rejects_forbidden_letters() -> None:
     assert normalize_vin(" 5yj3e1ea0sf004091 ") == "5YJ3E1EA0SF004091"
+    assert normalize_vin("7SАYGDEF4PF665873") == "7SAYGDEF4PF665873"
     assert validate_vin("5YJ3E1EA0SF004091") is True
+    assert validate_vin("7SАYGDEF4PF665873") is True
     assert validate_vin("5YJ3E1IA0SF004091") is False
     assert validate_vin("SHORTVIN") is False
 
@@ -101,7 +103,7 @@ def test_vpic_uses_metric_hp_conversion_when_engine_hp_is_missing() -> None:
     assert result.displacement_cc == 2000
     assert result.horse_power == round(150 * METRIC_HP_PER_KW, 2)
     assert result.horse_power == 203.94
-    assert result.horse_power_source == "nhtsa_engine_kw"
+    assert result.horse_power_source == "nhtsa_engine_kw_reference"
 
 
 def test_vpic_uses_curated_spec_when_nhtsa_omits_power() -> None:
@@ -125,7 +127,7 @@ def test_vpic_uses_curated_spec_when_nhtsa_omits_power() -> None:
     assert result.horse_power_source == "spec_catalog"
 
 
-def test_vpic_ev_sets_zero_engine_volume_and_metric_hp() -> None:
+def test_vpic_ev_reference_power_does_not_become_regulatory_power() -> None:
     payload = {
         "Results": [
             {
@@ -142,12 +144,41 @@ def test_vpic_ev_sets_zero_engine_volume_and_metric_hp() -> None:
 
     result = parse_vpic_result(payload, "5YJ3E1EA0SF004091")
 
-    assert result.status == VinDecodeStatus.COMPLETE
+    assert result.status == VinDecodeStatus.PARTIAL
     assert result.powertrain_kind == "EV"
     assert result.displacement_cc == 0
     assert result.horse_power == pytest.approx(282.80, abs=0.01)
-    assert result.horse_power_source == "nhtsa_engine_kw"
-    assert result.complete_for_calculator is True
+    assert result.horse_power_source == "nhtsa_engine_kw_reference"
+    assert result.electric_power_kw is None
+    assert result.complete_for_calculator is False
+    assert "30-minute" in (result.warning or "")
+
+
+def test_user_tesla_model_y_vin_is_normalized_and_identified_as_performance() -> None:
+    payload = {
+        "Results": [
+            {
+                "Make": "TESLA",
+                "Model": "Model Y",
+                "ModelYear": "2023",
+                "FuelTypePrimary": "Electric",
+                "ElectrificationLevel": "BEV (Battery Electric Vehicle)",
+                "ErrorCode": "0",
+            }
+        ]
+    }
+
+    result = parse_vpic_result(payload, "7SАYGDEF4PF665873")
+
+    assert result.vin == "7SAYGDEF4PF665873"
+    assert result.make == "TESLA"
+    assert result.model == "Model Y"
+    assert result.model_year == 2023
+    assert result.trim == "Performance AWD"
+    assert result.drive_type == "AWD/All-Wheel Drive"
+    assert result.powertrain_kind == "EV"
+    assert result.electric_power_kw is None
+    assert result.status == VinDecodeStatus.PARTIAL
 
 
 def test_vpic_partial_vehicle_never_fabricates_missing_power() -> None:
