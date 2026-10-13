@@ -15,7 +15,7 @@ def test_market_parity_scores_50() -> None:
     assert result.savings_rub == 0
     assert result.savings_percent == 0
     assert result.score == 50
-    assert result.rating == DealRating.FAIR
+    assert result.rating == DealRating.WEAK
     assert result.market_position == MarketPosition.AT_MARKET
 
 
@@ -58,6 +58,7 @@ def test_small_market_delta_is_treated_as_market_parity() -> None:
         reference_price_rub=5_000_000,
     )
     assert result.savings_percent == 4
+    assert result.rating == DealRating.FAIR
     assert result.market_position == MarketPosition.AT_MARKET
 
 
