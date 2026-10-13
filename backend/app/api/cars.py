@@ -16,6 +16,12 @@ class CarUrlRequest(BaseModel):
     url: str
 
 
+def _has_required_power(car: CarListing) -> bool:
+    if car.powertrain_kind in ("EV", "SERIES_HYBRID"):
+        return bool(car.electric_power_kw and car.electric_power_kw > 0)
+    return bool(car.horse_power and car.horse_power > 0)
+
+
 @router.get("/search", response_model=list[CarListing])
 async def search(
     make_id: int | None = Query(None),
@@ -42,9 +48,8 @@ async def search(
     result: list[CarListing] = []
     for raw in raw_list:
         car = myauto.parse_car(raw)
-        if car.year and car.price_usd and car.horse_power and (
-            car.engine_volume_cc > 0 or car.powertrain_kind == "EV"
-        ):
+        has_engine_data = car.powertrain_kind == "EV" or car.engine_volume_cc > 0
+        if car.year and car.price_usd and _has_required_power(car) and has_engine_data:
             try:
                 age = resolve_vehicle_age(car_year=car.year, manufacture_date=None)
                 precise = calculatePersonalImportCustoms(
@@ -54,6 +59,7 @@ async def search(
                         "eurToRubRate": eur_to_rub,
                         "engineCc": car.engine_volume_cc,
                         "horsePower": car.horse_power,
+                        "electricPowerKw": car.electric_power_kw,
                         "ageYears": age.age_years,
                         "isPersonalUse": True,
                         "powertrainKind": car.powertrain_kind,
@@ -67,6 +73,11 @@ async def search(
                     car.estimate_warning = "Vehicle age is estimated from model year; exact manufacture date may change customs band."
             except ValueError as exc:
                 car.estimate_warning = str(exc)
+        elif car.powertrain_kind in ("EV", "SERIES_HYBRID"):
+            car.estimate_warning = (
+                "Maximum 30-minute electric traction power is required for a precise Russian import estimate. "
+                "Peak/listing horsepower is not used for this calculation."
+            )
         else:
             car.estimate_warning = "Horsepower or required vehicle data is missing; precise import total was not calculated."
         result.append(car)
