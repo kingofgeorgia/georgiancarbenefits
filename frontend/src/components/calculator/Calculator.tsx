@@ -98,7 +98,7 @@ export function Calculator() {
       }
 
       if (vehicle.status === "PARTIAL") {
-        toast.warning(t("vinPartial"));
+        toast.warning(t("vinHint"));
       } else {
         toast.success(t("vinLoaded", { vehicle: [vehicle.make, vehicle.model, vehicle.model_year].filter(Boolean).join(" ") }));
       }
@@ -183,7 +183,7 @@ export function Calculator() {
                   {decodedVin.status === "PARTIAL" && (
                     <div className="flex gap-2 text-xs text-amber-900">
                       <AlertTriangle className="h-4 w-4 shrink-0" />
-                      <span>{t("vinPartialHint")}</span>
+                      <span>{t("vinHint")}</span>
                     </div>
                   )}
                 </div>
