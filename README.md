@@ -14,6 +14,7 @@ The application estimates the total cost of buying a vehicle in Georgia and impo
 - ICE, hybrid, series-hybrid and EV calculation paths
 - Official Bank of Russia exchange rates with source/staleness metadata
 - myauto.ge vehicle import workflow
+- Free NHTSA vPIC VIN decoder with calculator autofill
 - Optional automatic Russia-market appraisal through official Auto.ru Business Appraisal.API
 - Comparable-market metadata: sample size, market boundaries, mileage-adjusted average, source and check time
 - Manual Russia-market price override for controlled scenarios
@@ -90,6 +91,15 @@ docker compose up --build
 Frontend: `http://localhost:3000`
 
 API docs: `http://localhost:8000/docs`
+
+### Vehicle input
+
+The calculator supports two complementary vehicle-identification paths:
+
+1. paste a `myauto.ge` listing URL to import listing price, mileage and normalized vehicle data;
+2. enter a 17-character VIN to decode available make/model/year/engine/power data through the free NHTSA vPIC API.
+
+VIN data is a convenience input. Exact customs-critical specifications should still be verified against vehicle documents. See [`docs/vin-decoder.md`](docs/vin-decoder.md).
 
 ### Optional Auto.ru Business market comparison
 
@@ -169,7 +179,9 @@ It calculates and records:
 - tariff ruleset version;
 - exchange-rate source and effective date.
 
-`backend/app/services/russian_market.py` optionally resolves the loaded myauto.ge vehicle against the official Auto.ru Business catalog and obtains comparable-market appraisal metadata. A manual Russia-market price takes precedence when explicitly supplied.
+`backend/app/services/vin_decoder.py` normalizes VIN data from NHTSA vPIC and can prefill vehicle identity/specification fields before calculation.
+
+`backend/app/services/russian_market.py` optionally resolves the known vehicle identity against the official Auto.ru Business catalog and obtains comparable-market appraisal metadata. A manual Russia-market price takes precedence when explicitly supplied.
 
 When a Russia-market reference price is available, `backend/app/services/deal_score.py` additionally calculates:
 
@@ -179,7 +191,7 @@ When a Russia-market reference price is available, `backend/app/services/deal_sc
 - qualitative deal rating;
 - market position (below / at / above market).
 
-See [`docs/deal-score.md`](docs/deal-score.md) for the exact scoring formula and [`docs/russian-market-provider.md`](docs/russian-market-provider.md) for automatic market-data rules.
+See [`docs/deal-score.md`](docs/deal-score.md), [`docs/vin-decoder.md`](docs/vin-decoder.md) and [`docs/russian-market-provider.md`](docs/russian-market-provider.md).
 
 The public calculator endpoint is:
 
@@ -191,7 +203,7 @@ A one-off calculation does not require authentication. User-specific functionali
 
 ## Testing
 
-Regression tests cover representative customs scenarios, boundary conditions, Deal Score behavior and normalization of documented Auto.ru Business appraisal responses. CI also validates the frontend build, PowerShell local-start script and production Docker configuration/images.
+Regression tests cover representative customs scenarios, boundary conditions, Deal Score behavior, VIN normalization and documented Auto.ru Business appraisal responses. CI also validates the frontend build, PowerShell local-start script and production Docker configuration/images.
 
 Run backend checks locally:
 
@@ -222,7 +234,8 @@ georgiancarbenefits/
 │   ├── deal-score.md
 │   ├── legal-sources.md
 │   ├── production.md
-│   └── russian-market-provider.md
+│   ├── russian-market-provider.md
+│   └── vin-decoder.md
 ├── Caddyfile
 ├── start-local.ps1
 ├── docker-compose.yml
@@ -242,6 +255,7 @@ georgiancarbenefits/
 
 ## Roadmap
 
+- add shareable public Deal Pages with vehicle/calculation/Deal Score/MileON CTA;
 - expand curated/learned vehicle specification coverage;
 - improve comparable matching with richer generation/body/engine attributes when available from source data;
 - persist market-comparison snapshots in authenticated history;
