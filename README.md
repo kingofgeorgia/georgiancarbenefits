@@ -15,10 +15,14 @@ The application estimates the total cost of buying a vehicle in Georgia and impo
 - Official Bank of Russia exchange rates with source/staleness metadata
 - myauto.ge vehicle import workflow
 - Comparison with an equivalent vehicle price in Russia
+- MileON Deal Score (0–100), savings percentage and market-position rating
+- MileON lead CTA with prefilled calculation and vehicle context
 - Authenticated calculation history
 - Russian, English and Georgian UI
 - Docker-based local and production environments
 - Backend/frontend/PowerShell/production-Docker CI checks
+
+The current Russia-market reference price is entered manually. Automatic comparable collection is intentionally kept as a separate provider layer so a manual number is never presented as automatically verified market data.
 
 ## Stack
 
@@ -106,7 +110,8 @@ In production:
 - PostgreSQL is not exposed to the internet;
 - FastAPI and Next.js are reachable only through the internal Docker network;
 - Caddy terminates HTTPS and proxies `/api/*` to FastAPI;
-- the backend refuses unsafe production secrets/origins.
+- the backend refuses unsafe production secrets/origins;
+- `NEXT_PUBLIC_MILEON_CONTACT_URL` controls the public MileON CTA destination.
 
 See [`docs/production.md`](docs/production.md) for the complete deployment, update, backup and verification procedure.
 
@@ -137,7 +142,7 @@ npm run dev
 
 ## Calculation model
 
-The canonical calculation path is `backend/app/services/personal_import_customs.py`.
+The canonical customs calculation path is `backend/app/services/personal_import_customs.py`.
 
 It calculates and records:
 
@@ -150,6 +155,16 @@ It calculates and records:
 - tariff ruleset version;
 - exchange-rate source and effective date.
 
+When a Russia-market reference price is supplied, `backend/app/services/deal_score.py` additionally calculates:
+
+- savings in RUB;
+- savings percentage;
+- MileON Deal Score from 0 to 100;
+- qualitative deal rating;
+- market position (below / at / above market).
+
+See [`docs/deal-score.md`](docs/deal-score.md) for the exact formula and rating thresholds.
+
 The public calculator endpoint is:
 
 ```text
@@ -160,7 +175,7 @@ A one-off calculation does not require authentication. User-specific functionali
 
 ## Testing
 
-Regression tests cover representative calculation scenarios and boundary conditions. CI also validates the frontend build, PowerShell local-start script and production Docker configuration/images.
+Regression tests cover representative calculation scenarios and boundary conditions, including Deal Score behavior. CI also validates the frontend build, PowerShell local-start script and production Docker configuration/images.
 
 Run backend checks locally:
 
@@ -188,6 +203,7 @@ georgiancarbenefits/
 │   └── Dockerfile.prod
 ├── docs/
 │   ├── calculation-rules.md
+│   ├── deal-score.md
 │   ├── legal-sources.md
 │   └── production.md
 ├── Caddyfile
@@ -204,13 +220,12 @@ georgiancarbenefits/
 - Production rejects weak JWT/database credentials and non-HTTPS frontend origins.
 - PostgreSQL has no published production host port.
 - Production application containers run behind Caddy rather than being exposed directly.
-- Treat external vehicle and exchange-rate data as untrusted input.
+- Treat external vehicle, market-price and exchange-rate data as untrusted input.
 
 ## Roadmap
 
 - expand curated/learned vehicle specification coverage;
-- add Russian-market comparable search and deal score;
-- add MileON Cars lead-generation CTA;
+- add automatic Russian-market comparable search with source/sample metadata;
 - add production observability, backups and automated deployment;
 - add branch protection / required CI checks for `main`.
 
