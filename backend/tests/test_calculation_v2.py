@@ -1,5 +1,7 @@
 from datetime import date
 
+import pytest
+
 from app.calculation.age import resolve_vehicle_age
 from app.calculation.tariffs import get_calculation_rule_version, get_recycling_2026
 from app.integrations.cbr import parse_cbr_daily_xml
@@ -70,24 +72,42 @@ def test_2026_low_power_over_3500_coefficient() -> None:
     assert engine_band == "> 3500 cc"
 
 
-def test_pure_ev_uses_aggregate_customs_payment_not_eur_per_cc() -> None:
+def test_pure_ev_uses_30_minute_power_for_aggregate_payment() -> None:
     result = calculatePersonalImportCustoms(
         {
             "price": 52_590,
             "currencyToRubRate": 91,
             "eurToRubRate": 98,
             "engineCc": 0,
-            "horsePower": 300,
+            "electricPowerKw": 153,
             "ageYears": 4,
             "isPersonalUse": True,
             "powertrainKind": "EV",
         }
     )
     assert result["details"]["customsPaymentKind"] == "AGGREGATE_PAYMENT"
+    assert result["details"]["powerKwUsed"] == 153
+    assert result["details"]["powerBasis"] == "MAX_30_MINUTE_ELECTRIC_POWER_KW"
     assert result["importDuty"] == 717_853.5
-    assert result["excise"] == 301_200
-    assert result["vat"] == 1_277_043.57
-    assert result["unifiedRate"] == 2_296_097.07
+    assert result["excise"] == 208_852.08
+    assert result["vat"] == 1_256_727.03
+    assert result["unifiedRate"] == 2_183_432.61
+
+
+def test_pure_ev_rejects_peak_horsepower_without_30_minute_power() -> None:
+    with pytest.raises(ValueError, match="electricPowerKw is required"):
+        calculatePersonalImportCustoms(
+            {
+                "price": 52_590,
+                "currencyToRubRate": 91,
+                "eurToRubRate": 98,
+                "engineCc": 0,
+                "horsePower": 455,
+                "ageYears": 4,
+                "isPersonalUse": True,
+                "powertrainKind": "EV",
+            }
+        )
 
 
 def test_tariff_data_has_versions() -> None:
