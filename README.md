@@ -36,6 +36,44 @@ The application estimates the total cost of buying a vehicle in Georgia and impo
 
 ## Quick start
 
+### Windows / PowerShell
+
+After cloning or pulling the repository, start the complete local stack with:
+
+```powershell
+.\start-local.ps1
+```
+
+The script:
+
+- verifies Docker and Docker Compose;
+- creates `.env` from `.env.example` if necessary;
+- builds backend and frontend images;
+- starts PostgreSQL and waits until it is healthy;
+- creates a SQL backup in `backups/` before database migrations;
+- runs `alembic upgrade head` and verifies the migration head;
+- starts backend and frontend;
+- checks `http://localhost:8000/health`;
+- opens the frontend in the default browser.
+
+Optional flags:
+
+```powershell
+.\start-local.ps1 -SkipBuild
+.\start-local.ps1 -SkipBackup
+.\start-local.ps1 -NoBrowser
+```
+
+To stop containers without deleting PostgreSQL data:
+
+```powershell
+docker compose down
+```
+
+Do not use `docker compose down -v` unless you intentionally want to delete the local PostgreSQL volume.
+
+### Manual Docker start
+
 ```bash
 git clone https://github.com/kingofgeorgia/georgiancarbenefits.git
 cd georgiancarbenefits
@@ -129,6 +167,7 @@ georgiancarbenefits/
 │   ├── messages/
 │   └── src/
 ├── docs/
+├── start-local.ps1
 ├── docker-compose.yml
 └── .env.example
 ```
