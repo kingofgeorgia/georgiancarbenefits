@@ -1,14 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.config import settings
 from app.api.auth import router as auth_router
 from app.api.calculator import router as calculator_router
 from app.api.cars import router as cars_router
+from app.api.deals import router as deals_router
 from app.api.history import router as history_router
+from app.core.config import settings
 
 app = FastAPI(
-    title="Georgian Car Benefits API",
+    title="MileON Import Calculator API",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -25,6 +26,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(calculator_router)
 app.include_router(cars_router)
+app.include_router(deals_router)
 app.include_router(history_router)
 
 

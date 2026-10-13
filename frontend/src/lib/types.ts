@@ -133,6 +133,35 @@ export interface CalculatorResult {
   rates: CurrencyRates;
 }
 
+export interface DealVehicleSnapshot {
+  make?: string | null;
+  model?: string | null;
+  year?: number | null;
+  mileage_km?: number | null;
+  price_usd?: number | null;
+  image_url?: string | null;
+  source_url?: string | null;
+  vin?: string | null;
+}
+
+export interface DealShareCreate {
+  request: CalculatorRequest;
+  result: CalculatorResult;
+  vehicle?: DealVehicleSnapshot | null;
+}
+
+export interface DealShareCreated {
+  public_id: string;
+  created_at: string;
+}
+
+export interface DealShareOut {
+  public_id: string;
+  schema_version: string;
+  snapshot: DealShareCreate;
+  created_at: string;
+}
+
 export interface CalculationOut extends CalculatorRequest {
   id: number;
   age_is_estimated: boolean;

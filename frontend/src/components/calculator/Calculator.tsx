@@ -17,6 +17,7 @@ import { api } from "@/lib/api";
 import type { CalculatorRequest, CalculatorResult, CarListing, PowertrainKind, VinDecodeResult } from "@/lib/types";
 import { CalculatorResults } from "./CalculatorResults";
 import { CurrencyRatesWidget } from "./CurrencyRatesWidget";
+import { ShareDealButton } from "./ShareDealButton";
 
 const currentYear = new Date().getFullYear();
 
@@ -33,26 +34,14 @@ export function Calculator() {
     car_price_usd: z.coerce.number().positive(tErr("required")),
     engine_volume_cc: z.coerce.number().int().min(0),
     car_year: z.coerce.number().int().min(1990).max(currentYear),
-    manufacture_date: z.preprocess(
-      (value) => value === "" || value == null ? null : String(value),
-      z.string().nullable().optional(),
-    ),
+    manufacture_date: z.preprocess((value) => value === "" || value == null ? null : String(value), z.string().nullable().optional()),
     horse_power: z.coerce.number().positive(tErr("required")),
-    mileage_km: z.preprocess(
-      (value) => value === "" || value == null ? null : Number(value),
-      z.number().int().min(0).nullable().optional(),
-    ),
+    mileage_km: z.preprocess((value) => value === "" || value == null ? null : Number(value), z.number().int().min(0).nullable().optional()),
     powertrain_kind: z.enum(["ICE", "OTHER_HYBRID", "EV", "SERIES_HYBRID"]),
     logistics_cost_rub: z.coerce.number().min(0),
-    rf_analog_price_rub: z.preprocess(
-      (value) => value === "" || value == null ? null : Number(value),
-      z.number().positive().nullable().optional(),
-    ),
+    rf_analog_price_rub: z.preprocess((value) => value === "" || value == null ? null : Number(value), z.number().positive().nullable().optional()),
     auto_market_comparison: z.boolean(),
-    note: z.preprocess(
-      (value) => value === "" ? null : value,
-      z.string().nullable().optional(),
-    ),
+    note: z.preprocess((value) => value === "" ? null : value, z.string().nullable().optional()),
   }).superRefine((data, ctx) => {
     if (data.powertrain_kind !== "EV" && data.engine_volume_cc <= 0) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["engine_volume_cc"], message: tErr("required") });
@@ -68,13 +57,7 @@ export function Calculator() {
   type FormData = z.infer<typeof schema>;
   const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      logistics_cost_rub: 170000,
-      powertrain_kind: "ICE",
-      manufacture_date: null,
-      mileage_km: null,
-      auto_market_comparison: true,
-    },
+    defaultValues: { logistics_cost_rub: 170000, powertrain_kind: "ICE", manufacture_date: null, mileage_km: null, auto_market_comparison: true },
   });
 
   const powertrainKind = watch("powertrain_kind");
@@ -112,9 +95,7 @@ export function Calculator() {
         setValue("powertrain_kind", vehicle.powertrain_kind);
         if (vehicle.powertrain_kind === "EV") setValue("engine_volume_cc", 0);
       }
-      toast.success(t("vinLoaded", {
-        vehicle: [vehicle.make, vehicle.model, vehicle.model_year].filter(Boolean).join(" "),
-      }));
+      toast.success(t("vinLoaded", { vehicle: [vehicle.make, vehicle.model, vehicle.model_year].filter(Boolean).join(" ") }));
     },
     onError: () => toast.error(t("vinDecodeError")),
   });
@@ -131,8 +112,6 @@ export function Calculator() {
   });
 
   function onSubmit(data: FormData) {
-    const sourceMake = loadedCar?.make ?? decodedVin?.make ?? null;
-    const sourceModel = loadedCar?.model ?? decodedVin?.model ?? null;
     const payload: CalculatorRequest = {
       ...data,
       manufacture_date: data.manufacture_date ?? null,
@@ -140,8 +119,8 @@ export function Calculator() {
       engine_volume_cc: data.powertrain_kind === "EV" ? 0 : data.engine_volume_cc,
       powertrain_kind: data.powertrain_kind as PowertrainKind,
       is_personal_use: true,
-      source_make: sourceMake,
-      source_model: sourceModel,
+      source_make: loadedCar?.make ?? decodedVin?.make ?? null,
+      source_model: loadedCar?.model ?? decodedVin?.model ?? null,
       source_model_id: loadedCar?.model_id ?? null,
       rf_analog_price_rub: data.rf_analog_price_rub ?? null,
       auto_market_comparison: data.auto_market_comparison,
@@ -162,9 +141,7 @@ export function Calculator() {
               <Label className="flex items-center gap-1"><Link2 className="h-4 w-4" /> {t("urlLabel")}</Label>
               <div className="flex gap-2">
                 <Input placeholder={t("urlPlaceholder")} value={carUrl} onChange={(e) => setCarUrl(e.target.value)} className="flex-1" />
-                <Button type="button" variant="secondary" disabled={!carUrl || urlMutation.isPending} onClick={() => urlMutation.mutate(carUrl)}>
-                  {urlMutation.isPending ? "..." : t("urlLoad")}
-                </Button>
+                <Button type="button" variant="secondary" disabled={!carUrl || urlMutation.isPending} onClick={() => urlMutation.mutate(carUrl)}>{urlMutation.isPending ? "..." : t("urlLoad")}</Button>
               </div>
               {loadedCar && (
                 <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-md text-sm">
@@ -182,9 +159,7 @@ export function Calculator() {
               <Label className="flex items-center gap-1"><ScanLine className="h-4 w-4" /> {t("vinLabel")}</Label>
               <div className="flex gap-2">
                 <Input maxLength={17} placeholder={t("vinPlaceholder")} value={vin} onChange={(e) => setVin(e.target.value.toUpperCase())} className="flex-1 font-mono" />
-                <Button type="button" variant="secondary" disabled={vin.length !== 17 || vinMutation.isPending} onClick={() => vinMutation.mutate(vin)}>
-                  {vinMutation.isPending ? "..." : t("vinLoad")}
-                </Button>
+                <Button type="button" variant="secondary" disabled={vin.length !== 17 || vinMutation.isPending} onClick={() => vinMutation.mutate(vin)}>{vinMutation.isPending ? "..." : t("vinLoad")}</Button>
               </div>
               <p className="text-xs text-muted-foreground">{t("vinHint")}</p>
               {decodedVin && (
@@ -204,59 +179,40 @@ export function Calculator() {
             <div><Label>{t("carPriceUsd")}</Label><Input type="number" step="0.01" {...register("car_price_usd")} />{errors.car_price_usd && <p className="text-sm text-red-500">{errors.car_price_usd.message}</p>}</div>
             <div><Label>{t("engineVolume")}</Label><Input type="number" disabled={powertrainKind === "EV"} {...register("engine_volume_cc")} />{errors.engine_volume_cc && <p className="text-sm text-red-500">{errors.engine_volume_cc.message}</p>}</div>
             <div><Label>{t("carYear")}</Label><Input type="number" min={1990} max={currentYear} {...register("car_year")} />{errors.car_year && <p className="text-sm text-red-500">{errors.car_year.message}</p>}</div>
-            <div>
-              <Label>{t("manufactureDate")}</Label>
-              <Input type="date" {...register("manufacture_date")} />
-              <p className="text-xs text-muted-foreground mt-1">{t("manufactureDateHint")}</p>
-              {errors.manufacture_date && <p className="text-sm text-red-500">{errors.manufacture_date.message}</p>}
-            </div>
+            <div><Label>{t("manufactureDate")}</Label><Input type="date" {...register("manufacture_date")} /><p className="text-xs text-muted-foreground mt-1">{t("manufactureDateHint")}</p>{errors.manufacture_date && <p className="text-sm text-red-500">{errors.manufacture_date.message}</p>}</div>
             <div><Label>{t("horsePower")}</Label><Input type="number" step="0.01" {...register("horse_power")} />{errors.horse_power && <p className="text-sm text-red-500">{errors.horse_power.message}</p>}</div>
-            <div>
-              <Label>{t("mileage")}</Label>
-              <Input type="number" step="1000" {...register("mileage_km")} />
-              <p className="text-xs text-muted-foreground mt-1">{t("mileageHint")}</p>
-              {errors.mileage_km && <p className="text-sm text-red-500">{errors.mileage_km.message}</p>}
-            </div>
+            <div><Label>{t("mileage")}</Label><Input type="number" step="1000" {...register("mileage_km")} /><p className="text-xs text-muted-foreground mt-1">{t("mileageHint")}</p>{errors.mileage_km && <p className="text-sm text-red-500">{errors.mileage_km.message}</p>}</div>
             <div>
               <Label>{t("powertrainKind")}</Label>
               <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm" {...register("powertrain_kind")}>
-                <option value="ICE">{t("powertrain.ice")}</option>
-                <option value="OTHER_HYBRID">{t("powertrain.hybrid")}</option>
-                <option value="SERIES_HYBRID">{t("powertrain.seriesHybrid")}</option>
-                <option value="EV">{t("powertrain.ev")}</option>
+                <option value="ICE">{t("powertrain.ice")}</option><option value="OTHER_HYBRID">{t("powertrain.hybrid")}</option><option value="SERIES_HYBRID">{t("powertrain.seriesHybrid")}</option><option value="EV">{t("powertrain.ev")}</option>
               </select>
             </div>
             <div><Label>{t("logisticsCost")}</Label><Input type="number" step="1000" {...register("logistics_cost_rub")} /></div>
-
             <div className="md:col-span-2 rounded-lg border p-3 space-y-3">
               <label className="flex items-start gap-3 text-sm cursor-pointer">
                 <input type="checkbox" className="mt-1 h-4 w-4" {...register("auto_market_comparison")} />
-                <span>
-                  <span className="font-medium">{t("autoMarketComparison")}</span>
-                  <span className="block text-xs text-muted-foreground mt-1">{t("autoMarketComparisonHint")}</span>
-                </span>
+                <span><span className="font-medium">{t("autoMarketComparison")}</span><span className="block text-xs text-muted-foreground mt-1">{t("autoMarketComparisonHint")}</span></span>
               </label>
-              <div>
-                <Label>{t("rfAnalogPrice")}</Label>
-                <Input type="number" step="1000" {...register("rf_analog_price_rub")} />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {autoMarketComparison ? t("rfAnalogPriceOverrideHint") : t("rfAnalogPriceHint")}
-                </p>
-                {errors.rf_analog_price_rub && <p className="text-sm text-red-500">{errors.rf_analog_price_rub.message}</p>}
-              </div>
+              <div><Label>{t("rfAnalogPrice")}</Label><Input type="number" step="1000" {...register("rf_analog_price_rub")} /><p className="text-xs text-muted-foreground mt-1">{autoMarketComparison ? t("rfAnalogPriceOverrideHint") : t("rfAnalogPriceHint")}</p>{errors.rf_analog_price_rub && <p className="text-sm text-red-500">{errors.rf_analog_price_rub.message}</p>}</div>
             </div>
-
             <div><Label>{t("note")}</Label><Input {...register("note")} /></div>
             <div className="md:col-span-2 flex gap-3">
               <Button type="submit" disabled={calcMutation.isPending}>{calcMutation.isPending ? "..." : t("calculate")}</Button>
-              {calcMutation.data && (
-                <Button type="button" variant="outline" onClick={() => lastPayloadRef.current && saveMutation.mutate(lastPayloadRef.current)} disabled={saveMutation.isPending}>{t("saveToHistory")}</Button>
-              )}
+              {calcMutation.data && <Button type="button" variant="outline" onClick={() => lastPayloadRef.current && saveMutation.mutate(lastPayloadRef.current)} disabled={saveMutation.isPending}>{t("saveToHistory")}</Button>}
             </div>
           </form>
         </CardContent>
       </Card>
-      {calcMutation.data && <CalculatorResults result={calcMutation.data} vehicle={loadedCar} />}
+
+      {calcMutation.data && lastPayloadRef.current && (
+        <>
+          <CalculatorResults result={calcMutation.data} vehicle={loadedCar} />
+          <div className="flex justify-end">
+            <ShareDealButton request={lastPayloadRef.current} result={calcMutation.data} vehicle={loadedCar} vinVehicle={decodedVin} />
+          </div>
+        </>
+      )}
     </div>
   );
 }
