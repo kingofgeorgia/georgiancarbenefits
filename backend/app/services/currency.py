@@ -1,76 +1,78 @@
-"""
-Сервис курсов валют с кэшированием в памяти.
-Использует exchangerate.host (бесплатный, без API-ключа).
-Fallback: fixer.io публичный endpoint.
-"""
+from __future__ import annotations
 
 import asyncio
-import time
-from dataclasses import dataclass, field
-
-import httpx
+from dataclasses import dataclass, replace
+from datetime import date, datetime, timezone
 
 from app.core.config import settings
+from app.integrations.cbr import CbrRateError, fetch_cbr_daily_rates
 
 
-@dataclass
-class _Cache:
-    data: dict = field(default_factory=dict)
-    fetched_at: float = 0.0
+@dataclass(frozen=True)
+class CurrencySnapshot:
+    rates: dict[str, float]
+    source: str
+    effective_date: date
+    fetched_at: datetime
+    is_stale: bool = False
 
 
-_cache = _Cache()
+class CurrencyUnavailableError(RuntimeError):
+    pass
+
+
+_cache: CurrencySnapshot | None = None
 _lock = asyncio.Lock()
 
 
-async def get_rates() -> dict[str, float]:
-    """
-    Возвращает словарь {currency_code: rate_to_rub}.
-    Поддерживаемые коды: USD, EUR, GEL.
-    """
+def _cache_is_fresh(snapshot: CurrencySnapshot) -> bool:
+    age_seconds = (datetime.now(timezone.utc) - snapshot.fetched_at).total_seconds()
+    return age_seconds < settings.exchange_cache_ttl_seconds
+
+
+async def get_rate_snapshot() -> CurrencySnapshot:
+    """Return official CBR rates, using only a previously fetched snapshot as fallback."""
+    global _cache
+
     async with _lock:
-        if _cache.data and (time.time() - _cache.fetched_at) < settings.exchange_cache_ttl_seconds:
-            return _cache.data
+        if _cache is not None and _cache_is_fresh(_cache):
+            return _cache
 
-        rates = await _fetch_rates()
-        _cache.data = rates
-        _cache.fetched_at = time.time()
-        return rates
-
-
-async def _fetch_rates() -> dict[str, float]:
-    try:
-        # exchangerate.host — base=RUB, get 1 RUB expressed in other currencies,
-        # then invert to get X_to_RUB
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(
-                "https://api.exchangerate.host/latest",
-                params={"base": "USD", "symbols": "RUB,EUR,GEL"},
+        try:
+            cbr_rates = await fetch_cbr_daily_rates(settings.exchange_api_url)
+            snapshot = CurrencySnapshot(
+                rates=cbr_rates.rates_to_rub,
+                source="CBR",
+                effective_date=cbr_rates.effective_date,
+                fetched_at=datetime.now(timezone.utc),
+                is_stale=False,
             )
-            resp.raise_for_status()
-            data = resp.json()
-            r = data["rates"]
-            usd_to_rub = float(r["RUB"])
-            eur_to_rub = usd_to_rub / float(r["EUR"])
-            gel_to_rub = usd_to_rub / float(r["GEL"])
-            return {"USD": usd_to_rub, "EUR": eur_to_rub, "GEL": gel_to_rub}
-    except Exception:
-        # Fallback: использовать приблизительные значения, если API недоступен
-        return {"USD": 91.0, "EUR": 98.0, "GEL": 33.0}
+            _cache = snapshot
+            return snapshot
+        except CbrRateError as exc:
+            if _cache is not None:
+                return replace(_cache, is_stale=True)
+            raise CurrencyUnavailableError(
+                "Official Bank of Russia exchange rates are temporarily unavailable"
+            ) from exc
+
+
+async def get_rates() -> dict[str, float]:
+    return (await get_rate_snapshot()).rates
 
 
 async def get_usd_to_rub() -> float:
-    return (await get_rates())["USD"]
+    return (await get_rate_snapshot()).rates["USD"]
 
 
 async def get_eur_to_rub() -> float:
-    return (await get_rates())["EUR"]
+    return (await get_rate_snapshot()).rates["EUR"]
 
 
 async def get_gel_to_rub() -> float:
-    return (await get_rates())["GEL"]
+    return (await get_rate_snapshot()).rates["GEL"]
 
 
 async def get_usd_to_eur() -> float:
-    rates = await get_rates()
-    return rates["EUR"] / rates["USD"]
+    snapshot = await get_rate_snapshot()
+    return snapshot.rates["EUR"] / snapshot.rates["USD"]
