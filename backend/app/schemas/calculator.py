@@ -2,6 +2,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel
 
+from app.services.deal_score import DealRating, MarketPosition
 from app.services.personal_import_customs import CustomsPaymentKind, PowertrainKind
 
 
@@ -31,6 +32,15 @@ class CurrencyRates(BaseModel):
     is_stale: bool
 
 
+class DealAssessmentOut(BaseModel):
+    reference_price_rub: float
+    savings_rub: float
+    savings_percent: float
+    score: int
+    rating: DealRating
+    market_position: MarketPosition
+
+
 class CalculatorResult(BaseModel):
     car_price_rub: float
     customs_fee_rub: float
@@ -44,6 +54,7 @@ class CalculatorResult(BaseModel):
     logistics_cost_rub: float
     total_cost_rub: float
     savings_vs_rf_rub: float | None = None
+    deal_assessment: DealAssessmentOut | None = None
     vehicle_age_years: float
     age_is_estimated: bool
     age_estimation_method: str | None = None
