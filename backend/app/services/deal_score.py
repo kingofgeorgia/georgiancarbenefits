@@ -50,9 +50,9 @@ def calculate_deal_assessment(*, total_cost_rub: float, reference_price_rub: flo
         rating = DealRating.EXCELLENT
     elif score >= 70:
         rating = DealRating.GOOD
-    elif score >= 55:
+    elif score >= 50:
         rating = DealRating.FAIR
-    elif score >= 40:
+    elif score >= 35:
         rating = DealRating.WEAK
     else:
         rating = DealRating.BAD
