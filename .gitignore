@@ -16,6 +16,9 @@ out/
 .env
 *.env.local
 
+# Local database backups
+backups/
+
 # OS
 .DS_Store
 Thumbs.db
