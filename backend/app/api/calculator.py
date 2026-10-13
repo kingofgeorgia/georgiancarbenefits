@@ -3,13 +3,12 @@ from datetime import date
 from fastapi import APIRouter, HTTPException, status
 
 from app.calculation.age import resolve_vehicle_age
+from app.calculation.tariffs import get_calculation_rule_version
 from app.schemas.calculator import CalculatorRequest, CalculatorResult, CurrencyRates
 from app.services import currency
 from app.services.personal_import_customs import calculatePersonalImportCustoms
 
 router = APIRouter(prefix="/calculator", tags=["calculator"])
-
-CALCULATION_RULE_VERSION = "ru-personal-import-2026-v1"
 
 
 def _currency_rates_model(snapshot: currency.CurrencySnapshot) -> CurrencyRates:
@@ -44,14 +43,11 @@ async def calculate_total(payload: CalculatorRequest):
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
-    usd_to_rub = snapshot.rates["USD"]
-    eur_to_rub = snapshot.rates["EUR"]
-
     precise = calculatePersonalImportCustoms(
         {
             "price": payload.car_price_usd,
-            "currencyToRubRate": usd_to_rub,
-            "eurToRubRate": eur_to_rub,
+            "currencyToRubRate": snapshot.rates["USD"],
+            "eurToRubRate": snapshot.rates["EUR"],
             "engineCc": payload.engine_volume_cc,
             "horsePower": payload.horse_power,
             "ageYears": vehicle_age.age_years,
@@ -60,10 +56,7 @@ async def calculate_total(payload: CalculatorRequest):
         }
     )
 
-    car_price_rub = round(payload.car_price_usd * usd_to_rub, 2)
-    customs_fee_rub = precise["customsFee"]
-    duty_rub = precise["unifiedRate"]
-    recycling_rub = precise["utilFee"]
+    car_price_rub = round(payload.car_price_usd * snapshot.rates["USD"], 2)
     customs_total_rub = precise["total"]
     total = round(car_price_rub + customs_total_rub + payload.logistics_cost_rub, 2)
 
@@ -73,9 +66,13 @@ async def calculate_total(payload: CalculatorRequest):
 
     return CalculatorResult(
         car_price_rub=car_price_rub,
-        customs_fee_rub=customs_fee_rub,
-        customs_duty_rub=duty_rub,
-        recycling_fee_rub=recycling_rub,
+        customs_fee_rub=precise["customsFee"],
+        customs_duty_rub=precise["unifiedRate"],
+        customs_payment_kind=precise["details"]["customsPaymentKind"],
+        import_duty_rub=precise["importDuty"],
+        excise_rub=precise["excise"],
+        vat_rub=precise["vat"],
+        recycling_fee_rub=precise["utilFee"],
         customs_total_rub=customs_total_rub,
         logistics_cost_rub=payload.logistics_cost_rub,
         total_cost_rub=total,
@@ -85,7 +82,7 @@ async def calculate_total(payload: CalculatorRequest):
         age_estimation_method=vehicle_age.estimation_method,
         manufacture_date_used=vehicle_age.manufacture_date_used,
         calculation_date=vehicle_age.calculation_date,
-        calculation_rule_version=CALCULATION_RULE_VERSION,
+        calculation_rule_version=get_calculation_rule_version(),
         rates=_currency_rates_model(snapshot),
     )
 
