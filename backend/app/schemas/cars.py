@@ -65,6 +65,7 @@ class VinDecodeOut(BaseModel):
     displacement_cc: int | None = None
     engine_kw: float | None = None
     horse_power: float | None = None
+    horse_power_source: str | None = None
     drive_type: str | None = None
     transmission_style: str | None = None
     plant_country: str | None = None

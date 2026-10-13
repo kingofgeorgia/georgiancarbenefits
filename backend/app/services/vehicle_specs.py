@@ -121,3 +121,33 @@ def resolve_vehicle_spec(raw: dict[str, Any]) -> ResolvedVehicleSpec | None:
         powertrain_kind=best_match.powertrain_kind,
         source="spec_catalog",
     )
+
+
+def resolve_vehicle_spec_by_identity(
+    *,
+    make: str | None,
+    model: str | None,
+    year: int | None,
+    engine_cc: int | None = None,
+    trim: str | None = None,
+    series: str | None = None,
+) -> ResolvedVehicleSpec | None:
+    """Resolve a curated spec when a provider only gives normalized identity fields.
+
+    VIN providers often return make/model/year/engine but omit engine power. Reuse the
+    same curated catalog matcher instead of duplicating matching rules in each provider.
+    """
+    if not year or not make or not model:
+        return None
+    return resolve_vehicle_spec(
+        {
+            "make": make,
+            "man_name": make,
+            "model_name": model,
+            "car_model": model,
+            "trim_name": trim,
+            "car_desc": " ".join(part for part in (series, trim) if part),
+            "prod_year": year,
+            "engine_volume": engine_cc or 0,
+        }
+    )

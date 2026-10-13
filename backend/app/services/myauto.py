@@ -1,5 +1,6 @@
 """myauto.ge integration and normalization."""
 
+import re
 from typing import Any
 
 from curl_cffi.requests import AsyncSession
@@ -30,6 +31,25 @@ _FUEL_TYPE_LABELS: dict[int, str] = {
     8: "Hydrogen",
     9: "Plug-in hybrid",
 }
+_HORSEPOWER_KEYS = {
+    "hp",
+    "horse_power",
+    "horsepower",
+    "engine_hp",
+    "engine_horse_power",
+    "engine_horsepower",
+    "engine_power_hp",
+    "max_power",
+    "max_power_hp",
+    "maximum_power",
+    "maximum_power_hp",
+    "power_hp",
+}
+_HP_VALUE_RE = re.compile(r"(-?\d+(?:[.,]\d+)?)")
+_HP_UNIT_RE = re.compile(
+    r"(-?\d+(?:[.,]\d+)?)\s*(?:hp|h\.?p\.?|ps|bhp|л\.?\s*с\.?|ცხ\.?\s*ძ\.?)",
+    re.IGNORECASE,
+)
 
 
 def _resolve_fuel_type(raw: dict[str, Any]) -> str | None:
@@ -48,6 +68,62 @@ def _resolve_powertrain_kind(
     if fuel_type_id in (4, 9):
         return "OTHER_HYBRID"
     return "ICE"
+
+
+def _parse_horse_power_value(value: Any) -> int | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        number = float(value)
+    else:
+        text = str(value).strip()
+        if not text:
+            return None
+        unit_match = _HP_UNIT_RE.search(text)
+        match = unit_match or _HP_VALUE_RE.search(text)
+        if not match:
+            return None
+        try:
+            number = float(match.group(1).replace(",", "."))
+        except ValueError:
+            return None
+    if not 1 <= number <= 2000:
+        return None
+    return int(round(number))
+
+
+def _extract_listing_horse_power(raw: dict[str, Any]) -> tuple[int | None, str | None]:
+    """Find horsepower across known MyAuto payload variants without guessing from kW.
+
+    MyAuto payloads have changed field names over time and some details are nested.
+    Only explicitly horsepower-like keys are accepted, so unrelated `power` values
+    (for example battery or charger power in kW) are never treated as horsepower.
+    """
+
+    def walk(value: Any, depth: int = 0) -> tuple[int | None, str | None]:
+        if depth > 4:
+            return None, None
+        if isinstance(value, dict):
+            for key, child in value.items():
+                normalized_key = str(key).strip().lower().replace("-", "_").replace(" ", "_")
+                if normalized_key in _HORSEPOWER_KEYS:
+                    parsed = _parse_horse_power_value(child)
+                    if parsed is not None:
+                        return parsed, f"listing_{normalized_key}"
+            for child in value.values():
+                if isinstance(child, (dict, list, tuple)):
+                    found, source = walk(child, depth + 1)
+                    if found is not None:
+                        return found, source
+        elif isinstance(value, (list, tuple)):
+            for child in value:
+                if isinstance(child, (dict, list, tuple)):
+                    found, source = walk(child, depth + 1)
+                    if found is not None:
+                        return found, source
+        return None, None
+
+    return walk(raw)
 
 
 async def _resolve_man_name(session: AsyncSession, man_id: int) -> str:
@@ -175,10 +251,10 @@ def parse_car(raw: dict[str, Any]) -> CarListing:
     category_id = int(raw.get("category_id", 0) or 0) or None
     model_id = int(raw.get("model_id", 0) or 0) or None
     image_urls = _build_image_urls(raw)
-    raw_hp = int(raw.get("hp", 0) or 0)
+    listing_hp, listing_hp_source = _extract_listing_horse_power(raw)
     spec = resolve_vehicle_spec(raw)
-    horse_power = raw_hp if raw_hp > 0 else (spec.horse_power if spec else None)
-    horse_power_source = "listing_hp" if raw_hp > 0 else (spec.source if spec else None)
+    horse_power = listing_hp if listing_hp is not None else (spec.horse_power if spec else None)
+    horse_power_source = listing_hp_source if listing_hp is not None else (spec.source if spec else None)
     powertrain_kind = _resolve_powertrain_kind(raw, spec.powertrain_kind if spec else None)
     prod_year = int(raw.get("prod_year", 0) or 0)
     util_coefficient = None

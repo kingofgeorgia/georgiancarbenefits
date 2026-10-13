@@ -52,10 +52,33 @@ def test_vpic_parses_complete_ice_vehicle_and_extra_metadata() -> None:
     assert result.series == "G05"
     assert result.displacement_cc == 2998
     assert result.horse_power == 375.0
+    assert result.horse_power_source == "nhtsa_engine_hp"
     assert result.engine_cylinders == 6
     assert result.powertrain_kind == "ICE"
     assert result.complete_for_calculator is True
     assert result.warning is None
+
+
+def test_vpic_uses_engine_hp_to_when_lower_bound_is_missing() -> None:
+    payload = {
+        "Results": [
+            {
+                "Make": "FORD",
+                "Model": "Example",
+                "ModelYear": "2022",
+                "FuelTypePrimary": "Gasoline",
+                "DisplacementCC": "3500",
+                "EngineHP": "",
+                "EngineHP_to": "400",
+            }
+        ]
+    }
+
+    result = parse_vpic_result(payload, "1FTFW1E50NFA00001")
+
+    assert result.status == VinDecodeStatus.COMPLETE
+    assert result.horse_power == 400.0
+    assert result.horse_power_source == "nhtsa_engine_hp_to"
 
 
 def test_vpic_uses_metric_hp_conversion_when_engine_hp_is_missing() -> None:
@@ -78,6 +101,28 @@ def test_vpic_uses_metric_hp_conversion_when_engine_hp_is_missing() -> None:
     assert result.displacement_cc == 2000
     assert result.horse_power == round(150 * METRIC_HP_PER_KW, 2)
     assert result.horse_power == 203.94
+    assert result.horse_power_source == "nhtsa_engine_kw"
+
+
+def test_vpic_uses_curated_spec_when_nhtsa_omits_power() -> None:
+    payload = {
+        "Results": [
+            {
+                "Make": "BMW",
+                "Model": "M4",
+                "ModelYear": "2024",
+                "Trim": "Competition xDrive",
+                "FuelTypePrimary": "Gasoline",
+                "DisplacementCC": "3000",
+            }
+        ]
+    }
+
+    result = parse_vpic_result(payload, "WBS43AZ09RCP00001")
+
+    assert result.status == VinDecodeStatus.COMPLETE
+    assert result.horse_power == 530.0
+    assert result.horse_power_source == "spec_catalog"
 
 
 def test_vpic_ev_sets_zero_engine_volume_and_metric_hp() -> None:
@@ -101,6 +146,7 @@ def test_vpic_ev_sets_zero_engine_volume_and_metric_hp() -> None:
     assert result.powertrain_kind == "EV"
     assert result.displacement_cc == 0
     assert result.horse_power == pytest.approx(282.80, abs=0.01)
+    assert result.horse_power_source == "nhtsa_engine_kw"
     assert result.complete_for_calculator is True
 
 
@@ -121,6 +167,7 @@ def test_vpic_partial_vehicle_never_fabricates_missing_power() -> None:
 
     assert result.status == VinDecodeStatus.PARTIAL
     assert result.horse_power is None
+    assert result.horse_power_source is None
     assert result.complete_for_calculator is False
     assert result.warning is not None
 
