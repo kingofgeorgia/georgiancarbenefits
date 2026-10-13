@@ -31,6 +31,31 @@ export type MarketComparisonStatus =
   | "AUTH_ERROR"
   | "PROVIDER_ERROR";
 export type MarketReferenceKind = "MILEAGE_ADJUSTED_AVERAGE" | "MIDDLE_BAND_MIDPOINT";
+export type VinDecodeStatus = "AVAILABLE" | "INVALID_VIN" | "NOT_FOUND" | "PROVIDER_ERROR";
+
+export interface VinDecodeResult {
+  status: VinDecodeStatus;
+  vin: string;
+  make?: string | null;
+  model?: string | null;
+  model_year?: number | null;
+  manufacturer?: string | null;
+  body_class?: string | null;
+  vehicle_type?: string | null;
+  fuel_type?: string | null;
+  electrification_level?: string | null;
+  engine_cylinders?: number | null;
+  displacement_l?: number | null;
+  displacement_cc?: number | null;
+  horse_power?: number | null;
+  drive_type?: string | null;
+  transmission_style?: string | null;
+  plant_country?: string | null;
+  plant_city?: string | null;
+  powertrain_kind?: PowertrainKind | null;
+  error_text?: string | null;
+  source: string;
+}
 
 export interface DealAssessment {
   reference_price_rub: number;
