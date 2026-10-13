@@ -1,12 +1,17 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.calculation.age import resolve_vehicle_age
+from app.calculation.tariffs import get_calculation_rule_version
 from app.core.db import get_db
 from app.models.calculation import Calculation
 from app.models.user import User
 from app.schemas.calculator import CalculationOut, CalculatorRequest
-from app.services import currency, customs, recycling
+from app.services import currency
+from app.services.personal_import_customs import calculatePersonalImportCustoms
 
 router = APIRouter(prefix="/history", tags=["history"])
 
@@ -17,22 +22,33 @@ async def save_calculation(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    rates = await currency.get_rates()
-    usd_to_rub = rates["USD"]
-    eur_to_rub = rates["EUR"]
-    gel_to_rub = rates["GEL"]
-    usd_to_eur = eur_to_rub / usd_to_rub
+    try:
+        snapshot = await currency.get_rate_snapshot()
+        age = resolve_vehicle_age(
+            car_year=payload.car_year,
+            manufacture_date=payload.manufacture_date,
+            calculation_date=date.today(),
+        )
+        precise = calculatePersonalImportCustoms(
+            {
+                "price": payload.car_price_usd,
+                "currencyToRubRate": snapshot.rates["USD"],
+                "eurToRubRate": snapshot.rates["EUR"],
+                "engineCc": payload.engine_volume_cc,
+                "horsePower": payload.horse_power,
+                "ageYears": age.age_years,
+                "isPersonalUse": payload.is_personal_use,
+                "powertrainKind": payload.powertrain_kind,
+            }
+        )
+    except (ValueError, currency.CurrencyUnavailableError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    duty = customs.calculate_customs_duty(
-        price_usd=payload.car_price_usd,
-        engine_cc=payload.engine_volume_cc,
-        car_year=payload.car_year,
-        usd_to_eur=usd_to_eur,
-        eur_to_rub=eur_to_rub,
-    )
-    rec = recycling.calculate_recycling_fee(payload.engine_volume_cc, payload.car_year)
     total = round(
-        payload.car_price_usd * usd_to_rub + duty + rec + payload.logistics_cost_rub, 2
+        payload.car_price_usd * snapshot.rates["USD"]
+        + precise["total"]
+        + payload.logistics_cost_rub,
+        2,
     )
 
     calc = Calculation(
@@ -40,14 +56,29 @@ async def save_calculation(
         car_price_usd=payload.car_price_usd,
         engine_volume_cc=payload.engine_volume_cc,
         car_year=payload.car_year,
+        manufacture_date=payload.manufacture_date,
+        horse_power=payload.horse_power,
+        util_coefficient=precise["utilCoefficient"],
+        powertrain_kind=payload.powertrain_kind or "ICE",
+        is_personal_use=payload.is_personal_use,
+        age_is_estimated=age.age_is_estimated,
         logistics_cost_rub=payload.logistics_cost_rub,
         rf_analog_price_rub=payload.rf_analog_price_rub,
-        customs_duty_rub=duty,
-        recycling_fee_rub=rec,
+        customs_fee_rub=precise["customsFee"],
+        customs_duty_rub=precise["unifiedRate"],
+        customs_payment_kind=precise["details"]["customsPaymentKind"],
+        import_duty_rub=precise["importDuty"],
+        excise_rub=precise["excise"],
+        vat_rub=precise["vat"],
+        recycling_fee_rub=precise["utilFee"],
+        customs_total_rub=precise["total"],
         total_cost_rub=total,
-        usd_to_rub=usd_to_rub,
-        eur_to_rub=eur_to_rub,
-        gel_to_rub=gel_to_rub,
+        calculation_rule_version=get_calculation_rule_version(),
+        usd_to_rub=snapshot.rates["USD"],
+        eur_to_rub=snapshot.rates["EUR"],
+        gel_to_rub=snapshot.rates["GEL"],
+        currency_source=snapshot.source,
+        currency_effective_date=snapshot.effective_date,
         note=payload.note,
     )
     db.add(calc)
