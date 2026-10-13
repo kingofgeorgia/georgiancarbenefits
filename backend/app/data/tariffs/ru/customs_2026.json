@@ -1,0 +1,77 @@
+{
+  "version": "ru-customs-2026-v1",
+  "country": "RU",
+  "effective_from": "2026-01-01",
+  "effective_to": "2026-12-31",
+  "updated_at": "2026-10-13",
+  "sources": [
+    {
+      "document": "Решение Совета ЕЭК от 20.12.2017 № 107, приложение 2, таблица 2",
+      "url": "https://www.alta.ru/tamdoc/17sr0107/"
+    },
+    {
+      "document": "Постановление Правительства РФ от 23.10.2025 № 1638",
+      "url": "https://www.alta.ru/tamdoc/25ps1638/"
+    }
+  ],
+  "customs_fees_rub": [
+    {"max_customs_value_rub": 200000, "fee_rub": 1231},
+    {"max_customs_value_rub": 450000, "fee_rub": 2462},
+    {"max_customs_value_rub": 1200000, "fee_rub": 4924},
+    {"max_customs_value_rub": 2700000, "fee_rub": 13541},
+    {"max_customs_value_rub": 4200000, "fee_rub": 18465},
+    {"max_customs_value_rub": 5500000, "fee_rub": 21344},
+    {"max_customs_value_rub": 10000000, "fee_rub": 49240},
+    {"max_customs_value_rub": null, "fee_rub": 73860}
+  ],
+  "ice_personal_unified_rates": {
+    "le_3_years": [
+      {"max_value_eur": 8500, "percent": 0.54, "min_eur_per_cc": 2.5},
+      {"max_value_eur": 16700, "percent": 0.48, "min_eur_per_cc": 3.5},
+      {"max_value_eur": 42300, "percent": 0.48, "min_eur_per_cc": 5.5},
+      {"max_value_eur": 84500, "percent": 0.48, "min_eur_per_cc": 7.5},
+      {"max_value_eur": 169000, "percent": 0.48, "min_eur_per_cc": 15.0},
+      {"max_value_eur": null, "percent": 0.48, "min_eur_per_cc": 20.0}
+    ],
+    "between_3_and_5_years": [
+      {"max_engine_cc": 1000, "eur_per_cc": 1.5},
+      {"max_engine_cc": 1500, "eur_per_cc": 1.7},
+      {"max_engine_cc": 1800, "eur_per_cc": 2.5},
+      {"max_engine_cc": 2300, "eur_per_cc": 2.7},
+      {"max_engine_cc": 3000, "eur_per_cc": 3.0},
+      {"max_engine_cc": null, "eur_per_cc": 3.6}
+    ],
+    "gt_5_years": [
+      {"max_engine_cc": 1000, "eur_per_cc": 3.0},
+      {"max_engine_cc": 1500, "eur_per_cc": 3.2},
+      {"max_engine_cc": 1800, "eur_per_cc": 3.5},
+      {"max_engine_cc": 2300, "eur_per_cc": 4.8},
+      {"max_engine_cc": 3000, "eur_per_cc": 5.0},
+      {"max_engine_cc": null, "eur_per_cc": 5.7}
+    ]
+  },
+  "ev_personal_aggregate_payment": {
+    "import_duty_percent": 0.15,
+    "vat_percent": 0.22,
+    "vat_base": "customs_value_plus_import_duty_plus_excise",
+    "excise_rub_per_hp": [
+      {"max_hp": 90, "rate": 0},
+      {"max_hp": 150, "rate": 64},
+      {"max_hp": 200, "rate": 613},
+      {"max_hp": 300, "rate": 1004},
+      {"max_hp": 400, "rate": 1711},
+      {"max_hp": 500, "rate": 1771},
+      {"max_hp": null, "rate": 1829}
+    ],
+    "sources": [
+      {
+        "document": "НК РФ, статья 193 (ставки акциза на 2026 год)",
+        "url": "https://www.consultant.ru/document/cons_doc_LAW_28165/22201a65e4f59a582714243c15b655989bd57066/"
+      },
+      {
+        "document": "НК РФ, статья 164; Федеральный закон от 28.11.2025 № 425-ФЗ (НДС 22% с 01.01.2026)",
+        "url": "https://www.nalog.gov.ru/new2026/"
+      }
+    ]
+  }
+}
