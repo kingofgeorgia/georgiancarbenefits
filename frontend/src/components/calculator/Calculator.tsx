@@ -40,7 +40,7 @@ export function Calculator() {
     logistics_cost_rub: z.coerce.number().min(0),
     rf_analog_price_rub: z.preprocess(
       (value) => value === "" || value == null ? null : Number(value),
-      z.number().nullable().optional(),
+      z.number().positive().nullable().optional(),
     ),
     note: z.preprocess(
       (value) => value === "" ? null : value,
@@ -155,7 +155,12 @@ export function Calculator() {
               </select>
             </div>
             <div><Label>{t("logisticsCost")}</Label><Input type="number" step="1000" {...register("logistics_cost_rub")} /></div>
-            <div><Label>{t("rfAnalogPrice")}</Label><Input type="number" step="1000" {...register("rf_analog_price_rub")} /></div>
+            <div>
+              <Label>{t("rfAnalogPrice")}</Label>
+              <Input type="number" step="1000" {...register("rf_analog_price_rub")} />
+              <p className="text-xs text-muted-foreground mt-1">{t("rfAnalogPriceHint")}</p>
+              {errors.rf_analog_price_rub && <p className="text-sm text-red-500">{errors.rf_analog_price_rub.message}</p>}
+            </div>
             <div><Label>{t("note")}</Label><Input {...register("note")} /></div>
             <div className="md:col-span-2 flex gap-3">
               <Button type="submit" disabled={calcMutation.isPending}>{calcMutation.isPending ? "..." : t("calculate")}</Button>
@@ -166,7 +171,7 @@ export function Calculator() {
           </form>
         </CardContent>
       </Card>
-      {calcMutation.data && <CalculatorResults result={calcMutation.data} />}
+      {calcMutation.data && <CalculatorResults result={calcMutation.data} vehicle={loadedCar} />}
     </div>
   );
 }

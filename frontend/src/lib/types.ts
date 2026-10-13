@@ -20,6 +20,17 @@ export interface CurrencyRates {
 
 export type PowertrainKind = "ICE" | "OTHER_HYBRID" | "EV" | "SERIES_HYBRID";
 export type CustomsPaymentKind = "UNIFIED_RATE" | "AGGREGATE_PAYMENT";
+export type DealRating = "EXCELLENT" | "GOOD" | "FAIR" | "WEAK" | "BAD";
+export type MarketPosition = "UNDER_MARKET" | "AT_MARKET" | "OVER_MARKET";
+
+export interface DealAssessment {
+  reference_price_rub: number;
+  savings_rub: number;
+  savings_percent: number;
+  score: number;
+  rating: DealRating;
+  market_position: MarketPosition;
+}
 
 export interface CalculatorRequest {
   car_price_usd: number;
@@ -50,6 +61,7 @@ export interface CalculatorResult {
   logistics_cost_rub: number;
   total_cost_rub: number;
   savings_vs_rf_rub?: number | null;
+  deal_assessment?: DealAssessment | null;
   vehicle_age_years: number;
   age_is_estimated: boolean;
   age_estimation_method?: string | null;
