@@ -25,13 +25,12 @@ function Assert-Command {
 function Invoke-Checked {
     param(
         [Parameter(Mandatory = $true)][string]$FilePath,
-        [Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments
+        [Parameter(Mandatory = $true)][string[]]$Arguments
     )
 
-    # Windows PowerShell can promote native stderr output (including harmless
-    # Docker warnings) to NativeCommandError when ErrorActionPreference=Stop.
-    # Let the native command run, then use its real process exit code to decide
-    # whether the command failed.
+    # Windows PowerShell may surface native stderr as NativeCommandError even
+    # when the process exits successfully. Run the native command, then decide
+    # success strictly from its actual process exit code.
     $previousErrorActionPreference = $ErrorActionPreference
     $exitCode = 0
     try {
@@ -70,8 +69,8 @@ function Wait-ForPostgres {
 Assert-Command "docker"
 
 Write-Step "Checking Docker"
-Invoke-Checked docker version
-Invoke-Checked docker compose version
+Invoke-Checked -FilePath "docker" -Arguments @("version")
+Invoke-Checked -FilePath "docker" -Arguments @("compose", "version")
 
 if (-not (Test-Path ".env")) {
     if (-not (Test-Path ".env.example")) {
@@ -84,11 +83,11 @@ if (-not (Test-Path ".env")) {
 
 if (-not $SkipBuild) {
     Write-Step "Building backend and frontend images"
-    Invoke-Checked docker compose build backend frontend
+    Invoke-Checked -FilePath "docker" -Arguments @("compose", "build", "backend", "frontend")
 }
 
 Write-Step "Starting PostgreSQL"
-Invoke-Checked docker compose up -d postgres
+Invoke-Checked -FilePath "docker" -Arguments @("compose", "up", "-d", "postgres")
 Wait-ForPostgres
 
 if (-not $SkipBackup) {
@@ -104,25 +103,25 @@ if (-not $SkipBackup) {
     $containerId = (& docker compose ps -q postgres).Trim()
 
     $dumpCommand = 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fp -f ' + $containerBackupPath
-    Invoke-Checked docker compose exec -T postgres sh -lc $dumpCommand
-    Invoke-Checked docker cp "${containerId}:$containerBackupPath" $backupPath
-    Invoke-Checked docker compose exec -T postgres rm -f $containerBackupPath
+    Invoke-Checked -FilePath "docker" -Arguments @("compose", "exec", "-T", "postgres", "sh", "-lc", $dumpCommand)
+    Invoke-Checked -FilePath "docker" -Arguments @("cp", "${containerId}:$containerBackupPath", $backupPath)
+    Invoke-Checked -FilePath "docker" -Arguments @("compose", "exec", "-T", "postgres", "rm", "-f", $containerBackupPath)
 
     Write-Host "Backup saved to: $backupPath" -ForegroundColor Green
 }
 
 Write-Step "Checking current database migration"
-Invoke-Checked docker compose run --rm backend alembic current
+Invoke-Checked -FilePath "docker" -Arguments @("compose", "run", "--rm", "backend", "alembic", "current")
 
 Write-Step "Applying Alembic migrations"
-Invoke-Checked docker compose run --rm backend alembic upgrade head
+Invoke-Checked -FilePath "docker" -Arguments @("compose", "run", "--rm", "backend", "alembic", "upgrade", "head")
 
 Write-Step "Verifying migration head"
-Invoke-Checked docker compose run --rm backend alembic current
-Invoke-Checked docker compose run --rm backend alembic heads
+Invoke-Checked -FilePath "docker" -Arguments @("compose", "run", "--rm", "backend", "alembic", "current")
+Invoke-Checked -FilePath "docker" -Arguments @("compose", "run", "--rm", "backend", "alembic", "heads")
 
 Write-Step "Starting backend and frontend"
-Invoke-Checked docker compose up -d backend frontend
+Invoke-Checked -FilePath "docker" -Arguments @("compose", "up", "-d", "backend", "frontend")
 
 Write-Step "Waiting for backend health check"
 $healthOk = $false
@@ -147,7 +146,7 @@ else {
 }
 
 Write-Step "Container status"
-Invoke-Checked docker compose ps
+Invoke-Checked -FilePath "docker" -Arguments @("compose", "ps")
 
 Write-Host "`nMileON Import Calculator is starting locally." -ForegroundColor Green
 Write-Host "Frontend: http://localhost:3000"
