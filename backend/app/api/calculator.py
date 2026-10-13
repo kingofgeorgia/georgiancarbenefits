@@ -4,8 +4,9 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.calculation.age import resolve_vehicle_age
 from app.calculation.tariffs import get_calculation_rule_version
-from app.schemas.calculator import CalculatorRequest, CalculatorResult, CurrencyRates
+from app.schemas.calculator import CalculatorRequest, CalculatorResult, CurrencyRates, DealAssessmentOut
 from app.services import currency
+from app.services.deal_score import calculate_deal_assessment
 from app.services.personal_import_customs import calculatePersonalImportCustoms
 
 router = APIRouter(prefix="/calculator", tags=["calculator"])
@@ -60,9 +61,28 @@ async def calculate_total(payload: CalculatorRequest):
     customs_total_rub = precise["total"]
     total = round(car_price_rub + customs_total_rub + payload.logistics_cost_rub, 2)
 
+    deal_assessment = None
     savings = None
     if payload.rf_analog_price_rub is not None:
-        savings = round(payload.rf_analog_price_rub - total, 2)
+        try:
+            assessment = calculate_deal_assessment(
+                total_cost_rub=total,
+                reference_price_rub=payload.rf_analog_price_rub,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+        savings = assessment.savings_rub
+        deal_assessment = DealAssessmentOut(
+            reference_price_rub=assessment.reference_price_rub,
+            savings_rub=assessment.savings_rub,
+            savings_percent=assessment.savings_percent,
+            score=assessment.score,
+            rating=assessment.rating,
+            market_position=assessment.market_position,
+        )
 
     return CalculatorResult(
         car_price_rub=car_price_rub,
@@ -77,6 +97,7 @@ async def calculate_total(payload: CalculatorRequest):
         logistics_cost_rub=payload.logistics_cost_rub,
         total_cost_rub=total,
         savings_vs_rf_rub=savings,
+        deal_assessment=deal_assessment,
         vehicle_age_years=vehicle_age.age_years,
         age_is_estimated=vehicle_age.age_is_estimated,
         age_estimation_method=vehicle_age.estimation_method,
