@@ -6,14 +6,56 @@ from pydantic import BaseModel
 
 from app.calculation.age import resolve_vehicle_age
 from app.schemas.cars import CarListing, CarModelOption
-from app.services import currency, myauto
-from app.services.personal_import_customs import calculatePersonalImportCustoms
+from app.services import currency, myauto, vin_decoder
+from app.services.personal_import_customs import PowertrainKind, calculatePersonalImportCustoms
 
 router = APIRouter(prefix="/cars", tags=["cars"])
 
 
 class CarUrlRequest(BaseModel):
     url: str
+
+
+class VinDecodeRequest(BaseModel):
+    vin: str
+
+
+class VinDecodeOut(BaseModel):
+    status: vin_decoder.VinDecodeStatus
+    vin: str
+    make: str | None = None
+    model: str | None = None
+    model_year: int | None = None
+    manufacturer: str | None = None
+    body_class: str | None = None
+    vehicle_type: str | None = None
+    fuel_type: str | None = None
+    electrification_level: str | None = None
+    engine_cylinders: int | None = None
+    displacement_l: float | None = None
+    displacement_cc: int | None = None
+    horse_power: float | None = None
+    drive_type: str | None = None
+    transmission_style: str | None = None
+    plant_country: str | None = None
+    plant_city: str | None = None
+    powertrain_kind: PowertrainKind | None = None
+    error_text: str | None = None
+    source: str
+
+
+def _powertrain_from_vin(result: vin_decoder.VinDecodeResult) -> PowertrainKind | None:
+    fuel = (result.fuel_type or "").casefold()
+    electrification = (result.electrification_level or "").casefold()
+    if "electric" in fuel and "gasoline" not in fuel and "diesel" not in fuel:
+        return PowertrainKind.EV
+    if "bev" in electrification or "battery electric" in electrification:
+        return PowertrainKind.EV
+    if electrification and electrification not in {"not applicable", "none"}:
+        return PowertrainKind.OTHER_HYBRID
+    if result.fuel_type:
+        return PowertrainKind.ICE
+    return None
 
 
 @router.get("/search", response_model=list[CarListing])
@@ -98,3 +140,32 @@ async def car_from_url(payload: CarUrlRequest):
     if not raw:
         raise HTTPException(status_code=404, detail="Автомобиль не найден на myauto.ge")
     return myauto.parse_car(raw)
+
+
+@router.post("/from-vin", response_model=VinDecodeOut)
+async def car_from_vin(payload: VinDecodeRequest):
+    """Decode a 17-character VIN through the public NHTSA vPIC API."""
+    result = await vin_decoder.decode_vin(payload.vin)
+    return VinDecodeOut(
+        status=result.status,
+        vin=result.vin,
+        make=result.make,
+        model=result.model,
+        model_year=result.model_year,
+        manufacturer=result.manufacturer,
+        body_class=result.body_class,
+        vehicle_type=result.vehicle_type,
+        fuel_type=result.fuel_type,
+        electrification_level=result.electrification_level,
+        engine_cylinders=result.engine_cylinders,
+        displacement_l=result.displacement_l,
+        displacement_cc=result.displacement_cc,
+        horse_power=result.horse_power,
+        drive_type=result.drive_type,
+        transmission_style=result.transmission_style,
+        plant_country=result.plant_country,
+        plant_city=result.plant_city,
+        powertrain_kind=_powertrain_from_vin(result),
+        error_text=result.error_text,
+        source=result.source,
+    )
