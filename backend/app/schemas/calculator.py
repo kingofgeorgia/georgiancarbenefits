@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel
 
-from app.services.personal_import_customs import PowertrainKind
+from app.services.personal_import_customs import CustomsPaymentKind, PowertrainKind
 
 
 class CalculatorRequest(BaseModel):
@@ -35,6 +35,10 @@ class CalculatorResult(BaseModel):
     car_price_rub: float
     customs_fee_rub: float
     customs_duty_rub: float
+    customs_payment_kind: CustomsPaymentKind
+    import_duty_rub: float
+    excise_rub: float
+    vat_rub: float
     recycling_fee_rub: float
     customs_total_rub: float
     logistics_cost_rub: float
