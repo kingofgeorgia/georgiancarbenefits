@@ -12,9 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Link2, X } from "lucide-react";
+import { Link2, ScanLine, X } from "lucide-react";
 import { api } from "@/lib/api";
-import type { CalculatorRequest, CalculatorResult, CarListing, PowertrainKind } from "@/lib/types";
+import type { CalculatorRequest, CalculatorResult, CarListing, PowertrainKind, VinDecodeResult } from "@/lib/types";
 import { CalculatorResults } from "./CalculatorResults";
 import { CurrencyRatesWidget } from "./CurrencyRatesWidget";
 
@@ -24,7 +24,9 @@ export function Calculator() {
   const t = useTranslations("calculator");
   const tErr = useTranslations("errors");
   const [carUrl, setCarUrl] = useState("");
+  const [vin, setVin] = useState("");
   const [loadedCar, setLoadedCar] = useState<CarListing | null>(null);
+  const [decodedVin, setDecodedVin] = useState<VinDecodeResult | null>(null);
   const lastPayloadRef = useRef<CalculatorRequest | null>(null);
 
   const schema = z.object({
@@ -89,9 +91,32 @@ export function Calculator() {
       setValue("mileage_km", car.mileage_km ?? null);
       if (car.horse_power) setValue("horse_power", car.horse_power);
       setValue("powertrain_kind", car.powertrain_kind ?? "ICE");
-      toast.success(`${car.make} ${car.model} ${car.year} — данные загружены`);
+      toast.success(t("urlLoaded", { make: car.make, model: car.model, year: car.year }));
     },
-    onError: () => toast.error("Не удалось загрузить авто. Проверьте ссылку."),
+    onError: () => toast.error(t("urlLoadError")),
+  });
+
+  const vinMutation = useMutation({
+    mutationFn: (value: string) => api.post<VinDecodeResult>("/cars/from-vin", { vin: value }).then((r) => r.data),
+    onSuccess: (vehicle) => {
+      if (vehicle.status !== "AVAILABLE") {
+        setDecodedVin(null);
+        toast.error(vehicle.error_text ?? t("vinDecodeError"));
+        return;
+      }
+      setDecodedVin(vehicle);
+      if (vehicle.model_year) setValue("car_year", vehicle.model_year);
+      if (vehicle.displacement_cc != null) setValue("engine_volume_cc", vehicle.displacement_cc);
+      if (vehicle.horse_power != null) setValue("horse_power", vehicle.horse_power);
+      if (vehicle.powertrain_kind) {
+        setValue("powertrain_kind", vehicle.powertrain_kind);
+        if (vehicle.powertrain_kind === "EV") setValue("engine_volume_cc", 0);
+      }
+      toast.success(t("vinLoaded", {
+        vehicle: [vehicle.make, vehicle.model, vehicle.model_year].filter(Boolean).join(" "),
+      }));
+    },
+    onError: () => toast.error(t("vinDecodeError")),
   });
 
   const calcMutation = useMutation({
@@ -101,11 +126,13 @@ export function Calculator() {
 
   const saveMutation = useMutation({
     mutationFn: (data: CalculatorRequest) => api.post("/history/", data),
-    onSuccess: () => toast.success("Расчёт сохранён"),
+    onSuccess: () => toast.success(t("saved")),
     onError: () => toast.error(tErr("generic")),
   });
 
   function onSubmit(data: FormData) {
+    const sourceMake = loadedCar?.make ?? decodedVin?.make ?? null;
+    const sourceModel = loadedCar?.model ?? decodedVin?.model ?? null;
     const payload: CalculatorRequest = {
       ...data,
       manufacture_date: data.manufacture_date ?? null,
@@ -113,8 +140,8 @@ export function Calculator() {
       engine_volume_cc: data.powertrain_kind === "EV" ? 0 : data.engine_volume_cc,
       powertrain_kind: data.powertrain_kind as PowertrainKind,
       is_personal_use: true,
-      source_make: loadedCar?.make ?? null,
-      source_model: loadedCar?.model ?? null,
+      source_make: sourceMake,
+      source_model: sourceModel,
       source_model_id: loadedCar?.model_id ?? null,
       rf_analog_price_rub: data.rf_analog_price_rub ?? null,
       auto_market_comparison: data.auto_market_comparison,
@@ -130,24 +157,47 @@ export function Calculator() {
       <Card>
         <CardHeader><CardTitle>{t("title")}</CardTitle></CardHeader>
         <CardContent>
-          <div className="mb-5 space-y-2">
-            <Label className="flex items-center gap-1"><Link2 className="h-4 w-4" /> {t("urlLabel")}</Label>
-            <div className="flex gap-2">
-              <Input placeholder={t("urlPlaceholder")} value={carUrl} onChange={(e) => setCarUrl(e.target.value)} className="flex-1" />
-              <Button type="button" variant="secondary" disabled={!carUrl || urlMutation.isPending} onClick={() => urlMutation.mutate(carUrl)}>
-                {urlMutation.isPending ? "..." : t("urlLoad")}
-              </Button>
-            </div>
-            {loadedCar && (
-              <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-md text-sm">
-                <span className="text-green-800 font-medium">{loadedCar.make} {loadedCar.model} {loadedCar.year}</span>
-                <Badge variant="outline">${loadedCar.price_usd.toLocaleString()}</Badge>
-                {loadedCar.horse_power && <Badge variant="outline">{loadedCar.horse_power} hp</Badge>}
-                {loadedCar.mileage_km != null && <Badge variant="outline">{loadedCar.mileage_km.toLocaleString()} km</Badge>}
-                <a href={loadedCar.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs ml-auto">myauto.ge ↗</a>
-                <button type="button" onClick={() => { setLoadedCar(null); setCarUrl(""); }}><X className="h-4 w-4 text-gray-400 hover:text-gray-700" /></button>
+          <div className="mb-5 space-y-4">
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1"><Link2 className="h-4 w-4" /> {t("urlLabel")}</Label>
+              <div className="flex gap-2">
+                <Input placeholder={t("urlPlaceholder")} value={carUrl} onChange={(e) => setCarUrl(e.target.value)} className="flex-1" />
+                <Button type="button" variant="secondary" disabled={!carUrl || urlMutation.isPending} onClick={() => urlMutation.mutate(carUrl)}>
+                  {urlMutation.isPending ? "..." : t("urlLoad")}
+                </Button>
               </div>
-            )}
+              {loadedCar && (
+                <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-md text-sm">
+                  <span className="text-green-800 font-medium">{loadedCar.make} {loadedCar.model} {loadedCar.year}</span>
+                  <Badge variant="outline">${loadedCar.price_usd.toLocaleString()}</Badge>
+                  {loadedCar.horse_power && <Badge variant="outline">{loadedCar.horse_power} hp</Badge>}
+                  {loadedCar.mileage_km != null && <Badge variant="outline">{loadedCar.mileage_km.toLocaleString()} km</Badge>}
+                  <a href={loadedCar.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs ml-auto">myauto.ge ↗</a>
+                  <button type="button" onClick={() => { setLoadedCar(null); setCarUrl(""); }}><X className="h-4 w-4 text-gray-400 hover:text-gray-700" /></button>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1"><ScanLine className="h-4 w-4" /> {t("vinLabel")}</Label>
+              <div className="flex gap-2">
+                <Input maxLength={17} placeholder={t("vinPlaceholder")} value={vin} onChange={(e) => setVin(e.target.value.toUpperCase())} className="flex-1 font-mono" />
+                <Button type="button" variant="secondary" disabled={vin.length !== 17 || vinMutation.isPending} onClick={() => vinMutation.mutate(vin)}>
+                  {vinMutation.isPending ? "..." : t("vinLoad")}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">{t("vinHint")}</p>
+              {decodedVin && (
+                <div className="flex flex-wrap items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-md text-sm">
+                  <span className="text-blue-900 font-medium">{decodedVin.make} {decodedVin.model} {decodedVin.model_year}</span>
+                  {decodedVin.displacement_l != null && <Badge variant="outline">{decodedVin.displacement_l.toFixed(1)} L</Badge>}
+                  {decodedVin.horse_power != null && <Badge variant="outline">{Math.round(decodedVin.horse_power)} hp</Badge>}
+                  {decodedVin.fuel_type && <Badge variant="outline">{decodedVin.fuel_type}</Badge>}
+                  <span className="text-xs text-muted-foreground ml-auto">{decodedVin.source}</span>
+                  <button type="button" onClick={() => { setDecodedVin(null); setVin(""); }}><X className="h-4 w-4 text-gray-400 hover:text-gray-700" /></button>
+                </div>
+              )}
+            </div>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
