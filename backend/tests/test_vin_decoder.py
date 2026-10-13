@@ -1,4 +1,7 @@
+import pytest
+
 from app.services.vin_decoder import (
+    METRIC_HP_PER_KW,
     VinDecodeStatus,
     normalize_vin,
     parse_vpic_result,
@@ -13,14 +16,16 @@ def test_vin_validation_normalizes_case_and_rejects_forbidden_letters() -> None:
     assert validate_vin("SHORTVIN") is False
 
 
-def test_vpic_parses_basic_vehicle_and_prefers_engine_hp() -> None:
+def test_vpic_parses_complete_ice_vehicle_and_extra_metadata() -> None:
     payload = {
         "Results": [
             {
                 "ErrorCode": "0",
                 "Make": "BMW",
                 "Model": "X5",
-                "ModelYear": "2023",
+                "ModelYear": "2024",
+                "Trim": "xDrive40i",
+                "Series": "G05",
                 "Manufacturer": "BMW MANUFACTURER CORPORATION / BMW NORTH AMERICA",
                 "BodyClass": "Sport Utility Vehicle (SUV)/Multi-Purpose Vehicle (MPV)",
                 "VehicleType": "MULTIPURPOSE PASSENGER VEHICLE (MPV)",
@@ -29,8 +34,9 @@ def test_vpic_parses_basic_vehicle_and_prefers_engine_hp() -> None:
                 "DisplacementL": "3.0",
                 "DisplacementCC": "2998.0",
                 "EngineKW": "250",
-                "EngineHP": "335.0",
-                "DriveType": "4WD/4-Wheel Drive/4x4",
+                "EngineHP": "375",
+                "DriveType": "AWD/All-Wheel Drive",
+                "TransmissionStyle": "Automatic",
                 "PlantCountry": "UNITED STATES (USA)",
             }
         ]
@@ -38,16 +44,21 @@ def test_vpic_parses_basic_vehicle_and_prefers_engine_hp() -> None:
 
     result = parse_vpic_result(payload, "5UXCR6C08P9P00001")
 
-    assert result.status == VinDecodeStatus.AVAILABLE
+    assert result.status == VinDecodeStatus.COMPLETE
     assert result.make == "BMW"
     assert result.model == "X5"
-    assert result.model_year == 2023
+    assert result.model_year == 2024
+    assert result.trim == "xDrive40i"
+    assert result.series == "G05"
     assert result.displacement_cc == 2998
-    assert result.horse_power == 335.0
+    assert result.horse_power == 375.0
     assert result.engine_cylinders == 6
+    assert result.powertrain_kind == "ICE"
+    assert result.complete_for_calculator is True
+    assert result.warning is None
 
 
-def test_vpic_converts_kw_to_hp_when_engine_hp_is_missing() -> None:
+def test_vpic_uses_metric_hp_conversion_when_engine_hp_is_missing() -> None:
     payload = {
         "Results": [
             {
@@ -63,11 +74,13 @@ def test_vpic_converts_kw_to_hp_when_engine_hp_is_missing() -> None:
 
     result = parse_vpic_result(payload, "1HGCM82633A004352")
 
+    assert result.status == VinDecodeStatus.COMPLETE
     assert result.displacement_cc == 2000
+    assert result.horse_power == round(150 * METRIC_HP_PER_KW, 2)
     assert result.horse_power == 203.94
 
 
-def test_vpic_keeps_electrification_metadata() -> None:
+def test_vpic_ev_sets_zero_engine_volume_and_metric_hp() -> None:
     payload = {
         "Results": [
             {
@@ -76,16 +89,40 @@ def test_vpic_keeps_electrification_metadata() -> None:
                 "ModelYear": "2025",
                 "FuelTypePrimary": "Electric",
                 "ElectrificationLevel": "BEV (Battery Electric Vehicle)",
+                "EngineKW": "208",
+                "ErrorCode": "0",
             }
         ]
     }
 
     result = parse_vpic_result(payload, "5YJ3E1EA0SF004091")
 
-    assert result.status == VinDecodeStatus.AVAILABLE
-    assert result.fuel_type == "Electric"
-    assert result.electrification_level == "BEV (Battery Electric Vehicle)"
-    assert result.displacement_cc is None
+    assert result.status == VinDecodeStatus.COMPLETE
+    assert result.powertrain_kind == "EV"
+    assert result.displacement_cc == 0
+    assert result.horse_power == pytest.approx(282.80, abs=0.01)
+    assert result.complete_for_calculator is True
+
+
+def test_vpic_partial_vehicle_never_fabricates_missing_power() -> None:
+    payload = {
+        "Results": [
+            {
+                "Make": "TOYOTA",
+                "Model": "LAND CRUISER",
+                "ModelYear": "2024",
+                "FuelTypePrimary": "Gasoline",
+                "ErrorCode": "0",
+            }
+        ]
+    }
+
+    result = parse_vpic_result(payload, "JTMCY7AJ0R4000001")
+
+    assert result.status == VinDecodeStatus.PARTIAL
+    assert result.horse_power is None
+    assert result.complete_for_calculator is False
+    assert result.warning is not None
 
 
 def test_vpic_empty_decode_is_not_found() -> None:

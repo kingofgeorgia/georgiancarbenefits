@@ -26,6 +26,10 @@ class Settings(BaseSettings):
 
     myauto_api_url: str = "https://api2.myauto.ge/ka"
 
+    nhtsa_vpic_api_url: str = "https://vpic.nhtsa.dot.gov/api"
+    nhtsa_vpic_timeout_seconds: float = 10.0
+    nhtsa_vpic_cache_ttl_seconds: int = 86400
+
     auto_ru_business_api_url: str = "https://appraisal.api.cm.expert/v1"
     auto_ru_business_token: str | None = None
     auto_ru_business_sources: str = "auto_ru"
