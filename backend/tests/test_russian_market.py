@@ -65,7 +65,9 @@ def test_appraisal_does_not_invent_median_without_provider_value() -> None:
         mileage_km=None,
     )
 
-    expected_midpoint = round((758470.9904281164 + 804438.1004809744) / 2, 2)
+    # The normalized monetary contract rounds provider boundaries to kopeks
+    # before deriving the displayed midpoint.
+    expected_midpoint = round((758470.99 + 804438.10) / 2, 2)
     assert result.reference_kind == MarketReferenceKind.MIDDLE_BAND_MIDPOINT
     assert result.reference_price_rub == expected_midpoint
     assert result.market_midpoint_rub == expected_midpoint
