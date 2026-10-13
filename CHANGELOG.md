@@ -29,6 +29,9 @@ All notable changes to this project will be documented in this file.
 - Explicit market-provider statuses so market-data failures never block customs calculations.
 - Market-provider regression tests based on the documented Auto.ru Business appraisal response.
 - Russian-market provider setup and data-policy documentation.
+- Free NHTSA vPIC VIN decoder with normalized make/model/year, engine, power and electrification metadata.
+- Public `POST /cars/from-vin` endpoint and calculator VIN autofill workflow.
+- VIN decoder regression tests and provider documentation.
 - GitHub Actions CI for backend, frontend and PowerShell syntax.
 - Frontend typecheck script.
 
@@ -38,6 +41,7 @@ All notable changes to this project will be documented in this file.
 - Catalog estimates now use the same canonical calculation engine as the calculator.
 - Saved history now uses and stores the same calculation path shown to the user.
 - Calculator UI now collects horsepower, powertrain type, optional manufacture date and optional mileage.
+- Calculator can use either myauto.ge listing data or VIN-decoded make/model as vehicle identity for market comparison.
 - Results display customs processing fee, total customs cost, age-estimation warning, tariff version and exchange-rate source metadata.
 - Russia-market reference price now powers a structured Deal Score while preserving `savings_vs_rf_rub` compatibility.
 - When no manual reference is supplied, the calculator can automatically obtain a Russia-market reference from Auto.ru Business.
@@ -55,6 +59,7 @@ All notable changes to this project will be documented in this file.
 - Obsolete `backend/app/services/recycling.py` legacy calculation path.
 
 ### Planned
+- Shareable public Deal Page with vehicle, calculation, Deal Score and MileON CTA.
 - Expand curated/learned vehicle specification coverage.
 - Improve comparable matching with richer generation/body/engine attributes.
 - Persist market-comparison snapshots in authenticated history.
