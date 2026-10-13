@@ -22,6 +22,15 @@ export type PowertrainKind = "ICE" | "OTHER_HYBRID" | "EV" | "SERIES_HYBRID";
 export type CustomsPaymentKind = "UNIFIED_RATE" | "AGGREGATE_PAYMENT";
 export type DealRating = "EXCELLENT" | "GOOD" | "FAIR" | "WEAK" | "BAD";
 export type MarketPosition = "UNDER_MARKET" | "AT_MARKET" | "OVER_MARKET";
+export type MarketComparisonStatus =
+  | "AVAILABLE"
+  | "NOT_CONFIGURED"
+  | "MISSING_VEHICLE_DATA"
+  | "VEHICLE_NOT_FOUND"
+  | "INSUFFICIENT_DATA"
+  | "AUTH_ERROR"
+  | "PROVIDER_ERROR";
+export type MarketReferenceKind = "MILEAGE_ADJUSTED_AVERAGE" | "MIDDLE_BAND_MIDPOINT";
 
 export interface DealAssessment {
   reference_price_rub: number;
@@ -32,12 +41,37 @@ export interface DealAssessment {
   market_position: MarketPosition;
 }
 
+export interface MarketComparison {
+  status: MarketComparisonStatus;
+  provider: string;
+  source: string;
+  checked_at: string;
+  scope: string;
+  reference_price_rub?: number | null;
+  reference_kind?: MarketReferenceKind | null;
+  min_price_rub?: number | null;
+  median_price_rub?: number | null;
+  average_price_rub?: number | null;
+  market_midpoint_rub?: number | null;
+  max_price_rub?: number | null;
+  similar_count?: number | null;
+  average_mileage_km?: number | null;
+  removed_params: string[];
+  is_mileage_adjusted: boolean;
+  make?: string | null;
+  model?: string | null;
+  year?: number | null;
+  mileage_km?: number | null;
+  reason?: string | null;
+}
+
 export interface CalculatorRequest {
   car_price_usd: number;
   engine_volume_cc: number;
   car_year: number;
   manufacture_date?: string | null;
   horse_power: number;
+  mileage_km?: number | null;
   powertrain_kind?: PowertrainKind | null;
   is_personal_use?: boolean;
   source_make?: string | null;
@@ -45,6 +79,7 @@ export interface CalculatorRequest {
   source_model_id?: number | null;
   logistics_cost_rub: number;
   rf_analog_price_rub?: number | null;
+  auto_market_comparison?: boolean;
   note?: string | null;
 }
 
@@ -62,6 +97,8 @@ export interface CalculatorResult {
   total_cost_rub: number;
   savings_vs_rf_rub?: number | null;
   deal_assessment?: DealAssessment | null;
+  market_comparison?: MarketComparison | null;
+  deal_reference_source?: string | null;
   vehicle_age_years: number;
   age_is_estimated: boolean;
   age_estimation_method?: string | null;
