@@ -28,6 +28,7 @@ class VinDecodeResult:
     body_class: str | None = None
     vehicle_type: str | None = None
     fuel_type: str | None = None
+    electrification_level: str | None = None
     engine_cylinders: int | None = None
     displacement_l: float | None = None
     displacement_cc: int | None = None
@@ -104,7 +105,10 @@ def parse_vpic_result(payload: dict[str, Any], vin: str) -> VinDecodeResult:
         displacement_cc = int(round(displacement_l * 1000))
 
     engine_kw = _float(row.get("EngineKW"))
-    horse_power = round(engine_kw * 1.3596216173, 2) if engine_kw is not None else None
+    engine_hp = _float(row.get("EngineHP"))
+    horse_power = engine_hp
+    if horse_power is None and engine_kw is not None:
+        horse_power = round(engine_kw * 1.3596216173, 2)
 
     return VinDecodeResult(
         status=VinDecodeStatus.AVAILABLE,
@@ -116,6 +120,7 @@ def parse_vpic_result(payload: dict[str, Any], vin: str) -> VinDecodeResult:
         body_class=_text(row.get("BodyClass")),
         vehicle_type=_text(row.get("VehicleType")),
         fuel_type=_text(row.get("FuelTypePrimary")),
+        electrification_level=_text(row.get("ElectrificationLevel")),
         engine_cylinders=_int(row.get("EngineCylinders")),
         displacement_l=displacement_l,
         displacement_cc=displacement_cc,
