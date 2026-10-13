@@ -62,7 +62,7 @@
         "EXCELLENT": "Excellent deal",
         "GOOD": "Good deal",
         "FAIR": "Some savings",
-        "WEAK": "Weak value",
+        "WEAK": "At market level",
         "BAD": "Not attractive"
       },
       "marketPositionValue": {
