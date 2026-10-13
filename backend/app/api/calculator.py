@@ -4,10 +4,21 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.calculation.age import resolve_vehicle_age
 from app.calculation.tariffs import get_calculation_rule_version
-from app.schemas.calculator import CalculatorRequest, CalculatorResult, CurrencyRates, DealAssessmentOut
+from app.schemas.calculator import (
+    CalculatorRequest,
+    CalculatorResult,
+    CurrencyRates,
+    DealAssessmentOut,
+    MarketComparisonOut,
+)
 from app.services import currency
 from app.services.deal_score import calculate_deal_assessment
 from app.services.personal_import_customs import calculatePersonalImportCustoms
+from app.services.russian_market import (
+    MarketComparison,
+    MarketComparisonStatus,
+    get_market_comparison,
+)
 
 router = APIRouter(prefix="/calculator", tags=["calculator"])
 
@@ -21,6 +32,32 @@ def _currency_rates_model(snapshot: currency.CurrencySnapshot) -> CurrencyRates:
         effective_date=snapshot.effective_date,
         fetched_at=snapshot.fetched_at,
         is_stale=snapshot.is_stale,
+    )
+
+
+def _market_comparison_model(result: MarketComparison) -> MarketComparisonOut:
+    return MarketComparisonOut(
+        status=result.status,
+        provider=result.provider,
+        source=result.source,
+        checked_at=result.checked_at,
+        scope=result.scope,
+        reference_price_rub=result.reference_price_rub,
+        reference_kind=result.reference_kind,
+        min_price_rub=result.min_price_rub,
+        median_price_rub=result.median_price_rub,
+        average_price_rub=result.average_price_rub,
+        market_midpoint_rub=result.market_midpoint_rub,
+        max_price_rub=result.max_price_rub,
+        similar_count=result.similar_count,
+        average_mileage_km=result.average_mileage_km,
+        removed_params=list(result.removed_params),
+        is_mileage_adjusted=result.is_mileage_adjusted,
+        make=result.make,
+        model=result.model,
+        year=result.year,
+        mileage_km=result.mileage_km,
+        reason=result.reason,
     )
 
 
@@ -61,13 +98,31 @@ async def calculate_total(payload: CalculatorRequest):
     customs_total_rub = precise["total"]
     total = round(car_price_rub + customs_total_rub + payload.logistics_cost_rub, 2)
 
+    market_comparison = None
     deal_assessment = None
     savings = None
-    if payload.rf_analog_price_rub is not None:
+    deal_reference_source = None
+    reference_price = payload.rf_analog_price_rub
+
+    if reference_price is not None:
+        deal_reference_source = "MANUAL"
+    elif payload.auto_market_comparison:
+        market_result = await get_market_comparison(
+            make=payload.source_make,
+            model=payload.source_model,
+            year=payload.car_year,
+            mileage_km=payload.mileage_km,
+        )
+        market_comparison = _market_comparison_model(market_result)
+        if market_result.status == MarketComparisonStatus.AVAILABLE:
+            reference_price = market_result.reference_price_rub
+            deal_reference_source = "AUTO_RU_BUSINESS"
+
+    if reference_price is not None:
         try:
             assessment = calculate_deal_assessment(
                 total_cost_rub=total,
-                reference_price_rub=payload.rf_analog_price_rub,
+                reference_price_rub=reference_price,
             )
         except ValueError as exc:
             raise HTTPException(
@@ -98,6 +153,8 @@ async def calculate_total(payload: CalculatorRequest):
         total_cost_rub=total,
         savings_vs_rf_rub=savings,
         deal_assessment=deal_assessment,
+        market_comparison=market_comparison,
+        deal_reference_source=deal_reference_source,
         vehicle_age_years=vehicle_age.age_years,
         age_is_estimated=vehicle_age.age_is_estimated,
         age_estimation_method=vehicle_age.estimation_method,
