@@ -1,8 +1,13 @@
+from typing import Literal
+
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    app_env: Literal["development", "test", "production"] = "development"
 
     postgres_user: str = "gcb_user"
     postgres_password: str = "gcb_password"
@@ -20,6 +25,26 @@ class Settings(BaseSettings):
     exchange_cache_ttl_seconds: int = 3600
 
     myauto_api_url: str = "https://api2.myauto.ge/ka"
+
+    @model_validator(mode="after")
+    def validate_production_security(self):
+        if self.app_env != "production":
+            return self
+
+        if self.secret_key == "change_me" or len(self.secret_key) < 32:
+            raise ValueError("SECRET_KEY must be replaced with at least 32 random characters in production")
+
+        weak_db_passwords = {"gcb_password", "postgres", "password", "changeme", "change_me"}
+        if self.postgres_password.lower() in weak_db_passwords or len(self.postgres_password) < 16:
+            raise ValueError("POSTGRES_PASSWORD must be a strong password of at least 16 characters in production")
+
+        if "localhost" in self.frontend_origin or "127.0.0.1" in self.frontend_origin:
+            raise ValueError("FRONTEND_ORIGIN must be the public HTTPS origin in production")
+
+        if not self.frontend_origin.startswith("https://"):
+            raise ValueError("FRONTEND_ORIGIN must use HTTPS in production")
+
+        return self
 
     @property
     def database_url(self) -> str:

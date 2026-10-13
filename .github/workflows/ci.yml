@@ -59,3 +59,16 @@ jobs:
             $errors | ForEach-Object { Write-Error $_.Message }
             exit 1
           }
+
+  production-docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate production compose configuration
+        run: |
+          cp .env.production.example .env.production
+          docker compose --env-file .env.production -f docker-compose.prod.yml config > /dev/null
+      - name: Build production backend image
+        run: docker build -f backend/Dockerfile.prod backend
+      - name: Build production frontend image
+        run: docker build --build-arg NEXT_PUBLIC_API_URL=/api -f frontend/Dockerfile.prod frontend

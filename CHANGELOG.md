@@ -15,7 +15,12 @@ All notable changes to this project will be documented in this file.
 - Precise calculation snapshot fields and Alembic migration for history reproducibility.
 - Regression tests for customs/recycling boundaries, exact vehicle age, CBR parsing and EV calculations.
 - Legal/data-source documentation.
-- GitHub Actions CI for backend and frontend.
+- Safe Windows `start-local.ps1` startup/migration/backup workflow.
+- Production-specific backend and frontend Dockerfiles.
+- Production Docker Compose stack with Caddy HTTPS reverse proxy and internal-only database/application ports.
+- Production environment template and deployment/backup documentation.
+- Production configuration tests and production-Docker CI validation.
+- GitHub Actions CI for backend, frontend and PowerShell syntax.
 - Frontend typecheck script.
 
 ### Changed
@@ -28,11 +33,14 @@ All notable changes to this project will be documented in this file.
 - Pure EVs no longer pass through the ICE EUR/cc unified-rate formula.
 - Corrected 2026 low-power recycling coefficients for 3001–3500 cc and >3500 cc personal imports.
 - Exchange rates no longer silently fall back to hard-coded RUB values.
+- Next.js supports standalone production output.
+- Production backend fails fast on weak JWT/database secrets and unsafe frontend origins.
 
 ### Removed
 - Obsolete `backend/app/services/customs.py` legacy calculation path.
 - Obsolete `backend/app/services/recycling.py` legacy calculation path.
 
 ### Planned
-- Production-specific Docker configuration and stricter production secret validation.
 - Expand curated/learned vehicle specification coverage.
+- Russian-market comparable search, deal score and MileON lead-generation CTA.
+- Production observability, external backups and automated deployment.
