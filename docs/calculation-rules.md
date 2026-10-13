@@ -1,39 +1,53 @@
 # Calculation rules
 
-This document describes the current deterministic calculation flow implemented in `backend/app/services/personal_import_customs.py`.
+The canonical deterministic engine is `backend/app/services/personal_import_customs.py`. Mutable 2026 tariff values live under `backend/app/data/tariffs/ru/` and are loaded by `backend/app/calculation/tariffs.py`.
 
 ## Inputs
 
-The engine accepts:
+The engine accepts vehicle price, currency-to-RUB rate, EUR-to-RUB rate, displacement, horsepower, age, personal-use flag and powertrain kind (`ICE`, `OTHER_HYBRID`, `SERIES_HYBRID`, `EV`). The API additionally accepts an optional exact `manufacture_date`.
 
-- vehicle price
-- price currency → RUB rate
-- EUR → RUB rate
-- engine displacement in cc
-- horsepower
-- vehicle age in years
-- personal-use flag
-- powertrain kind (`ICE`, `OTHER_HYBRID`, `SERIES_HYBRID`, `EV`)
+## Vehicle age
 
-## Main flow
+`backend/app/calculation/age.py` calculates fractional age from the exact manufacture date when it is known. If only model year is available, January 1 of that year is used as a conservative estimate and the API returns `age_is_estimated=true`. This is important around the 3-year and 5-year customs boundaries.
 
-1. Convert vehicle price to RUB.
-2. Convert customs value to EUR.
-3. Determine age category: up to 3 years, 3–5 years, or over 5 years.
-4. Determine the customs-processing fee from the customs-value band.
-5. Calculate the unified customs duty using vehicle value and/or engine displacement depending on age category.
-6. Convert horsepower to kW using `1 hp = 0.73549875 kW`.
-7. Match the recycling coefficient by powertrain, engine range, power band and age.
-8. Multiply the coefficient by the passenger-car recycling base rate.
-9. Return customs fee + unified duty + recycling fee and diagnostic details.
+## Exchange rates
 
-## Important limitations
+The primary source is the official Bank of Russia XML daily-rates endpoint. The API returns the source, effective date, fetch timestamp and `is_stale` flag. There is no hard-coded exchange-rate fallback. If the source is temporarily unavailable, only a previously fetched successful snapshot may be used and it is marked stale; without a snapshot the API returns an explicit service error.
 
-- Age is currently derived from model year by the API route, not an exact manufacture date. Boundary cases around 3 and 5 years therefore still need improvement.
-- Tariff tables are currently encoded in Python and should be migrated to versioned data files.
-- Regulatory values must be re-verified whenever legislation changes.
-- The engine supports personal import by an individual only.
+## ICE and non-series hybrids
+
+1. Convert price to RUB and EUR using the official rate snapshot.
+2. Determine the customs-processing fee from the 2026 customs-value band.
+3. Apply the EAEU personal-use unified rate: value/cc minimum for cars up to 3 years, and cc-specific rates for 3–5 and >5 years.
+4. Convert horsepower to kW using `1 hp = 0.73549875 kW`.
+5. Match the 2026 personal-use recycling coefficient by displacement, power, age and powertrain.
+6. Add customs fee + unified rate + recycling fee.
+
+## Pure EV
+
+Pure EVs do not use the normal EUR/cc unified-rate path. They are calculated as an aggregate customs payment for personal-use goods. The 2026 implementation separates:
+
+- import duty;
+- excise by horsepower;
+- VAT on customs value + import duty + excise;
+- customs-processing fee;
+- recycling fee using the EV/series-hybrid power table.
+
+The API exposes `customs_payment_kind=AGGREGATE_PAYMENT` and returns import duty, excise and VAT separately.
+
+## Series hybrid
+
+For recycling-fee purposes, series hybrids use the EV/series-hybrid power table. For customs-duty purposes they are not treated as pure EVs and require a positive combustion-engine displacement.
+
+## Versioning
+
+The result includes `calculation_rule_version`, composed from the active customs and recycling data versions. 2026 data currently live in:
+
+- `backend/app/data/tariffs/ru/customs_2026.json`
+- `backend/app/data/tariffs/ru/recycling_2026.json`
+
+Future tariff years should add new data files instead of rewriting calculation algorithms.
 
 ## Regression tests
 
-`backend/tests/test_personal_import_customs.py` covers representative control cases and boundary conditions. These tests are intended to prevent accidental formula regressions; they are not a substitute for regulatory verification.
+`backend/tests/test_personal_import_customs.py` and `backend/tests/test_calculation_v2.py` cover representative formulas, exact age boundaries, CBR XML parsing, corrected 2026 recycling coefficients and pure-EV aggregate payment behavior. Tests protect against code regressions but do not replace regulatory review when legislation changes.
