@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, TypedDict
+from typing import Literal, NotRequired, TypedDict
 
 from app.calculation.tariffs import get_customs_2026, get_recycling_2026
 
@@ -9,6 +9,7 @@ PowertrainKind = Literal["ICE", "OTHER_HYBRID", "EV", "SERIES_HYBRID"]
 AgeCategory = Literal["LE_3", "BETWEEN_3_AND_5", "GT_5"]
 CustomsPaymentKind = Literal["UNIFIED_RATE", "AGGREGATE_PAYMENT"]
 HP_TO_KW = 0.73549875
+METRIC_HP_PER_KW = 1.3596216173
 
 
 class PersonalImportInput(TypedDict):
@@ -16,7 +17,8 @@ class PersonalImportInput(TypedDict):
     currencyToRubRate: float
     eurToRubRate: float
     engineCc: int
-    horsePower: float
+    horsePower: NotRequired[float | None]
+    electricPowerKw: NotRequired[float | None]
     ageYears: float
     isPersonalUse: bool
     powertrainKind: PowertrainKind | None
@@ -28,6 +30,7 @@ class OutputDetails(TypedDict):
     unifiedRateMethod: str
     utilFeeMethod: str
     powerKwUsed: float
+    powerBasis: str
     powertrainKind: PowertrainKind
     customsPaymentKind: CustomsPaymentKind
     utilMatchedEngineRangeCc: str | None
@@ -65,6 +68,11 @@ def _assert_non_negative(name: str, value: float) -> None:
 def horsePowerToKw(horse_power: float) -> float:
     _assert_positive("horsePower", horse_power)
     return round2(horse_power * HP_TO_KW)
+
+
+def kwToMetricHorsePower(power_kw: float) -> float:
+    _assert_positive("powerKw", power_kw)
+    return round2(power_kw * METRIC_HP_PER_KW)
 
 
 def getAgeCategory(age_years: float) -> AgeCategory:
@@ -131,17 +139,22 @@ def _select_excise_rate_2026(horse_power: float) -> float:
     raise ValueError(f"No 2026 excise band matched horsePower={horse_power}")
 
 
-def determineEvAggregatePayment2026(*, customs_value_rub: float, horse_power: float) -> tuple[float, float, float, float, str]:
+def determineEvAggregatePayment2026(*, customs_value_rub: float, power_kw: float) -> tuple[float, float, float, float, str]:
     _assert_positive("customsValueRub", customs_value_rub)
-    _assert_positive("horsePower", horse_power)
+    _assert_positive("electricPowerKw", power_kw)
     rules = get_customs_2026()["ev_personal_aggregate_payment"]
     import_duty = round2(customs_value_rub * float(rules["import_duty_percent"]))
+    horse_power = kwToMetricHorsePower(power_kw)
     excise_rate = _select_excise_rate_2026(horse_power)
     excise = round2(horse_power * excise_rate)
     vat_base = customs_value_rub + import_duty + excise
     vat = round2(vat_base * float(rules["vat_percent"]))
     aggregate = round2(import_duty + excise + vat)
-    method = f"pure EV aggregate payment: duty {rules['import_duty_percent'] * 100:g}% + excise {excise_rate:g} RUB/hp + VAT {rules['vat_percent'] * 100:g}%"
+    method = (
+        "pure EV aggregate payment using maximum 30-minute traction power: "
+        f"duty {rules['import_duty_percent'] * 100:g}% + excise {excise_rate:g} RUB/hp + "
+        f"VAT {rules['vat_percent'] * 100:g}%"
+    )
     return aggregate, import_duty, excise, vat, method
 
 
@@ -180,7 +193,6 @@ def calculatePersonalImportCustoms(input: PersonalImportInput) -> PersonalImport
     _assert_positive("price", float(input["price"]))
     _assert_positive("currencyToRubRate", float(input["currencyToRubRate"]))
     _assert_positive("eurToRubRate", float(input["eurToRubRate"]))
-    _assert_positive("horsePower", float(input["horsePower"]))
     _assert_non_negative("ageYears", float(input["ageYears"]))
     engine_cc = int(input["engineCc"])
     if powertrain_kind == "EV":
@@ -190,21 +202,49 @@ def calculatePersonalImportCustoms(input: PersonalImportInput) -> PersonalImport
     if input["isPersonalUse"] is not True:
         raise ValueError("This calculator supports only personal import by an individual (isPersonalUse must be true)")
 
+    if powertrain_kind in ("EV", "SERIES_HYBRID"):
+        electric_power_kw = input.get("electricPowerKw")
+        if electric_power_kw is None:
+            raise ValueError("electricPowerKw is required for EV and series-hybrid calculations")
+        _assert_positive("electricPowerKw", float(electric_power_kw))
+        power_kw_used = round2(float(electric_power_kw))
+        power_basis = "MAX_30_MINUTE_ELECTRIC_POWER_KW"
+    else:
+        horse_power = input.get("horsePower")
+        if horse_power is None:
+            raise ValueError("horsePower is required for ICE and other-hybrid calculations")
+        _assert_positive("horsePower", float(horse_power))
+        power_kw_used = horsePowerToKw(float(horse_power))
+        power_basis = "HORSEPOWER_CONVERTED_TO_KW"
+
     customs_value_rub = round2(float(input["price"]) * float(input["currencyToRubRate"]))
     customs_value_eur = round2(customs_value_rub / float(input["eurToRubRate"]))
     age_category = getAgeCategory(float(input["ageYears"]))
-    power_kw_used = horsePowerToKw(float(input["horsePower"]))
     customs_fee, customs_fee_method = determineCustomsFee2026(customs_value_rub)
 
     import_duty = excise = vat = 0.0
     if powertrain_kind == "EV":
         customs_payment_kind: CustomsPaymentKind = "AGGREGATE_PAYMENT"
-        unified_rate, import_duty, excise, vat, unified_rate_method = determineEvAggregatePayment2026(customs_value_rub=customs_value_rub, horse_power=float(input["horsePower"]))
+        unified_rate, import_duty, excise, vat, unified_rate_method = determineEvAggregatePayment2026(
+            customs_value_rub=customs_value_rub,
+            power_kw=power_kw_used,
+        )
     else:
         customs_payment_kind = "UNIFIED_RATE"
-        unified_rate, unified_rate_method = determineUnifiedRate(customs_value_rub=customs_value_rub, customs_value_eur=customs_value_eur, engine_cc=engine_cc, eur_to_rub_rate=float(input["eurToRubRate"]), age_category=age_category)
+        unified_rate, unified_rate_method = determineUnifiedRate(
+            customs_value_rub=customs_value_rub,
+            customs_value_eur=customs_value_eur,
+            engine_cc=engine_cc,
+            eur_to_rub_rate=float(input["eurToRubRate"]),
+            age_category=age_category,
+        )
 
-    util_coefficient, util_fee_method, matched_engine_range_cc, matched_power_range_kw = resolveUtilCoefficient2026PersonalM1(powertrain_kind=powertrain_kind, age_years=float(input["ageYears"]), power_kw=power_kw_used, engine_cc=engine_cc)
+    util_coefficient, util_fee_method, matched_engine_range_cc, matched_power_range_kw = resolveUtilCoefficient2026PersonalM1(
+        powertrain_kind=powertrain_kind,
+        age_years=float(input["ageYears"]),
+        power_kw=power_kw_used,
+        engine_cc=engine_cc,
+    )
     util_fee = round2(float(get_recycling_2026()["base_rate_rub"]) * util_coefficient)
     total = round2(customs_fee + unified_rate + util_fee)
     return {
@@ -224,6 +264,7 @@ def calculatePersonalImportCustoms(input: PersonalImportInput) -> PersonalImport
             "unifiedRateMethod": unified_rate_method,
             "utilFeeMethod": util_fee_method,
             "powerKwUsed": power_kw_used,
+            "powerBasis": power_basis,
             "powertrainKind": powertrain_kind,
             "customsPaymentKind": customs_payment_kind,
             "utilMatchedEngineRangeCc": matched_engine_range_cc,

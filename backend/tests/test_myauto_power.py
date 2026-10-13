@@ -48,3 +48,26 @@ def test_parse_car_uses_max_power_when_hp_key_is_absent() -> None:
 
     assert car.horse_power == 375
     assert car.horse_power_source == "listing_max_power"
+
+
+def test_ev_listing_horsepower_is_reference_only_not_regulatory_power() -> None:
+    car = parse_car(
+        {
+            "car_id": 123673764,
+            "man_name": "Tesla",
+            "model_name": "Model Y",
+            "car_model": "Model Y",
+            "prod_year": 2023,
+            "price": 28000,
+            "engine_volume": 0,
+            "fuel_type_id": 7,
+            "max_power": "455 hp",
+            "km": 63000,
+        }
+    )
+
+    assert car.powertrain_kind == "EV"
+    assert car.horse_power == 455
+    assert car.horse_power_source == "listing_max_power"
+    assert car.electric_power_kw is None
+    assert car.util_coefficient is None

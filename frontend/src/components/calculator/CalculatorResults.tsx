@@ -61,6 +61,9 @@ export function CalculatorResults({ result, vehicle }: Props) {
     sourceUrl: vehicle?.url ?? "—",
   });
   const contactUrl = buildContactUrl(leadMessage);
+  const powerBasisLabel = result.power_basis === "MAX_30_MINUTE_ELECTRIC_POWER_KW"
+    ? t("powerBasis30Minute")
+    : t("powerBasisHorsepower");
 
   return (
     <Card>
@@ -90,6 +93,10 @@ export function CalculatorResults({ result, vehicle }: Props) {
         )}
 
         <Row label={t("recyclingFee")} value={fmt(result.recycling_fee_rub)} />
+        <Row
+          label={t("powerUsed")}
+          value={`${result.power_kw_used.toFixed(2)} kW · ${powerBasisLabel}`}
+        />
         <Row label={t("customsTotal")} value={fmt(result.customs_total_rub)} bold />
         <Row label={t("logistics")} value={fmt(result.logistics_cost_rub)} />
         <Separator />

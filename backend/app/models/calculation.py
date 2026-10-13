@@ -23,6 +23,7 @@ class Calculation(Base):
     car_year: Mapped[int] = mapped_column(Integer, nullable=False)
     manufacture_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     horse_power: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    electric_power_kw: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     util_coefficient: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
     powertrain_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
     is_personal_use: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")

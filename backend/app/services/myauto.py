@@ -93,11 +93,11 @@ def _parse_horse_power_value(value: Any) -> int | None:
 
 
 def _extract_listing_horse_power(raw: dict[str, Any]) -> tuple[int | None, str | None]:
-    """Find horsepower across known MyAuto payload variants without guessing from kW.
+    """Find reference horsepower across known MyAuto payload variants.
 
-    MyAuto payloads have changed field names over time and some details are nested.
-    Only explicitly horsepower-like keys are accepted, so unrelated `power` values
-    (for example battery or charger power in kW) are never treated as horsepower.
+    Only explicitly horsepower-like keys are accepted. For EVs this value is
+    reference/peak power only and is never substituted for Russian regulatory
+    maximum 30-minute traction power.
     """
 
     def walk(value: Any, depth: int = 0) -> tuple[int | None, str | None]:
@@ -257,9 +257,18 @@ def parse_car(raw: dict[str, Any]) -> CarListing:
     horse_power_source = listing_hp_source if listing_hp is not None else (spec.source if spec else None)
     powertrain_kind = _resolve_powertrain_kind(raw, spec.powertrain_kind if spec else None)
     prod_year = int(raw.get("prod_year", 0) or 0)
+    electric_power_kw = None
+    electric_power_kw_source = None
     util_coefficient = None
 
-    if horse_power and prod_year and (engine_cc > 0 or powertrain_kind == "EV"):
+    # Marketplace horsepower is sufficient for ICE/non-series hybrids, but EV
+    # regulatory power must come from max 30-minute traction power documents.
+    if (
+        horse_power
+        and prod_year
+        and engine_cc > 0
+        and powertrain_kind not in ("EV", "SERIES_HYBRID")
+    ):
         try:
             age = resolve_vehicle_age(car_year=prod_year, manufacture_date=None)
             util_coefficient, _, _, _ = resolveUtilCoefficient2026PersonalM1(
@@ -283,6 +292,8 @@ def parse_car(raw: dict[str, Any]) -> CarListing:
         engine_volume_cc=0 if powertrain_kind == "EV" else engine_cc,
         horse_power=horse_power,
         horse_power_source=horse_power_source,
+        electric_power_kw=electric_power_kw,
+        electric_power_kw_source=electric_power_kw_source,
         fuel_type=_resolve_fuel_type(raw),
         util_coefficient=util_coefficient,
         powertrain_kind=powertrain_kind,

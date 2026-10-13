@@ -30,12 +30,18 @@ export function Calculator() {
   const [decodedVin, setDecodedVin] = useState<VinDecodeResult | null>(null);
   const lastPayloadRef = useRef<CalculatorRequest | null>(null);
 
+  const optionalPositiveNumber = z.preprocess(
+    (value) => value === "" || value == null ? null : Number(value),
+    z.number().positive(tErr("required")).nullable(),
+  );
+
   const schema = z.object({
     car_price_usd: z.coerce.number().positive(tErr("required")),
     engine_volume_cc: z.coerce.number().int().min(0),
     car_year: z.coerce.number().int().min(1990).max(currentYear),
     manufacture_date: z.preprocess((value) => value === "" || value == null ? null : String(value), z.string().nullable().optional()),
-    horse_power: z.coerce.number().positive(tErr("required")),
+    horse_power: optionalPositiveNumber,
+    electric_power_kw: optionalPositiveNumber,
     mileage_km: z.preprocess((value) => value === "" || value == null ? null : Number(value), z.number().int().min(0).nullable().optional()),
     powertrain_kind: z.enum(["ICE", "OTHER_HYBRID", "EV", "SERIES_HYBRID"]),
     logistics_cost_rub: z.coerce.number().min(0),
@@ -43,8 +49,15 @@ export function Calculator() {
     auto_market_comparison: z.boolean(),
     note: z.preprocess((value) => value === "" ? null : value, z.string().nullable().optional()),
   }).superRefine((data, ctx) => {
+    const usesElectricRegulatoryPower = data.powertrain_kind === "EV" || data.powertrain_kind === "SERIES_HYBRID";
     if (data.powertrain_kind !== "EV" && data.engine_volume_cc <= 0) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["engine_volume_cc"], message: tErr("required") });
+    }
+    if (usesElectricRegulatoryPower && data.electric_power_kw == null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["electric_power_kw"], message: tErr("required") });
+    }
+    if (!usesElectricRegulatoryPower && data.horse_power == null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["horse_power"], message: tErr("required") });
     }
     if (data.manufacture_date) {
       const parsed = new Date(`${data.manufacture_date}T00:00:00`);
@@ -57,11 +70,20 @@ export function Calculator() {
   type FormData = z.infer<typeof schema>;
   const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { logistics_cost_rub: 170000, powertrain_kind: "ICE", manufacture_date: null, mileage_km: null, auto_market_comparison: true },
+    defaultValues: {
+      logistics_cost_rub: 170000,
+      powertrain_kind: "ICE",
+      manufacture_date: null,
+      horse_power: null,
+      electric_power_kw: null,
+      mileage_km: null,
+      auto_market_comparison: true,
+    },
   });
 
   const powertrainKind = watch("powertrain_kind");
   const autoMarketComparison = watch("auto_market_comparison");
+  const usesElectricRegulatoryPower = powertrainKind === "EV" || powertrainKind === "SERIES_HYBRID";
 
   const urlMutation = useMutation({
     mutationFn: (url: string) => api.post<CarListing>("/cars/from-url", { url }).then((r) => r.data),
@@ -72,7 +94,8 @@ export function Calculator() {
       setValue("car_year", car.year);
       setValue("manufacture_date", null);
       setValue("mileage_km", car.mileage_km ?? null);
-      if (car.horse_power) setValue("horse_power", car.horse_power);
+      setValue("horse_power", car.powertrain_kind === "EV" || car.powertrain_kind === "SERIES_HYBRID" ? null : car.horse_power ?? null);
+      setValue("electric_power_kw", car.electric_power_kw ?? null);
       setValue("powertrain_kind", car.powertrain_kind ?? "ICE");
       toast.success(t("urlLoaded", { make: car.make, model: car.model, year: car.year }));
     },
@@ -89,16 +112,22 @@ export function Calculator() {
       }
 
       setDecodedVin(vehicle);
+      setVin(vehicle.vin);
       if (vehicle.model_year) setValue("car_year", vehicle.model_year);
       if (vehicle.displacement_cc != null) setValue("engine_volume_cc", vehicle.displacement_cc);
-      if (vehicle.horse_power != null) setValue("horse_power", vehicle.horse_power);
       if (vehicle.powertrain_kind) {
         setValue("powertrain_kind", vehicle.powertrain_kind);
         if (vehicle.powertrain_kind === "EV") setValue("engine_volume_cc", 0);
       }
+      if (vehicle.powertrain_kind === "EV" || vehicle.powertrain_kind === "SERIES_HYBRID") {
+        setValue("horse_power", null);
+        setValue("electric_power_kw", vehicle.electric_power_kw ?? null);
+      } else if (vehicle.horse_power != null) {
+        setValue("horse_power", vehicle.horse_power);
+      }
 
       if (vehicle.status === "PARTIAL") {
-        toast.warning(t("vinHint"));
+        toast.warning(vehicle.powertrain_kind === "EV" || vehicle.powertrain_kind === "SERIES_HYBRID" ? t("electricPowerHint") : t("vinHint"));
       } else {
         toast.success(t("vinLoaded", { vehicle: [vehicle.make, vehicle.model, vehicle.model_year].filter(Boolean).join(" ") }));
       }
@@ -118,9 +147,12 @@ export function Calculator() {
   });
 
   function onSubmit(data: FormData) {
+    const electricRegulatoryPower = data.powertrain_kind === "EV" || data.powertrain_kind === "SERIES_HYBRID";
     const payload: CalculatorRequest = {
       ...data,
       manufacture_date: data.manufacture_date ?? null,
+      horse_power: electricRegulatoryPower ? null : data.horse_power ?? null,
+      electric_power_kw: electricRegulatoryPower ? data.electric_power_kw ?? null : null,
       mileage_km: data.mileage_km ?? null,
       engine_volume_cc: data.powertrain_kind === "EV" ? 0 : data.engine_volume_cc,
       powertrain_kind: data.powertrain_kind as PowertrainKind,
@@ -150,10 +182,14 @@ export function Calculator() {
                 <Button type="button" variant="secondary" disabled={!carUrl || urlMutation.isPending} onClick={() => urlMutation.mutate(carUrl)}>{urlMutation.isPending ? "..." : t("urlLoad")}</Button>
               </div>
               {loadedCar && (
-                <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-md text-sm">
+                <div className="flex flex-wrap items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-md text-sm">
                   <span className="text-green-800 font-medium">{loadedCar.make} {loadedCar.model} {loadedCar.year}</span>
                   <Badge variant="outline">${loadedCar.price_usd.toLocaleString()}</Badge>
-                  {loadedCar.horse_power && <Badge variant="outline">{loadedCar.horse_power} hp</Badge>}
+                  {loadedCar.horse_power && (
+                    <Badge variant="outline">
+                      {loadedCar.horse_power} hp{loadedCar.powertrain_kind === "EV" ? ` · ${t("referenceOnly")}` : ""}
+                    </Badge>
+                  )}
                   {loadedCar.mileage_km != null && <Badge variant="outline">{loadedCar.mileage_km.toLocaleString()} km</Badge>}
                   <a href={loadedCar.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs ml-auto">myauto.ge ↗</a>
                   <button type="button" onClick={() => { setLoadedCar(null); setCarUrl(""); }}><X className="h-4 w-4 text-gray-400 hover:text-gray-700" /></button>
@@ -175,7 +211,11 @@ export function Calculator() {
                     {decodedVin.trim && <Badge variant="outline">{decodedVin.trim}</Badge>}
                     {decodedVin.series && <Badge variant="outline">{decodedVin.series}</Badge>}
                     {decodedVin.displacement_l != null && decodedVin.powertrain_kind !== "EV" && <Badge variant="outline">{decodedVin.displacement_l.toFixed(1)} L</Badge>}
-                    {decodedVin.horse_power != null && <Badge variant="outline">{Math.round(decodedVin.horse_power)} hp</Badge>}
+                    {decodedVin.horse_power != null && (
+                      <Badge variant="outline">
+                        {Math.round(decodedVin.horse_power)} hp{decodedVin.powertrain_kind === "EV" ? ` · ${t("referenceOnly")}` : ""}
+                      </Badge>
+                    )}
                     {decodedVin.fuel_type && <Badge variant="outline">{decodedVin.fuel_type}</Badge>}
                     <span className="text-xs text-muted-foreground ml-auto">{decodedVin.source}</span>
                     <button type="button" onClick={() => { setDecodedVin(null); setVin(""); }}><X className="h-4 w-4 text-gray-400 hover:text-gray-700" /></button>
@@ -183,7 +223,7 @@ export function Calculator() {
                   {decodedVin.status === "PARTIAL" && (
                     <div className="flex gap-2 text-xs text-amber-900">
                       <AlertTriangle className="h-4 w-4 shrink-0" />
-                      <span>{t("vinHint")}</span>
+                      <span>{decodedVin.powertrain_kind === "EV" || decodedVin.powertrain_kind === "SERIES_HYBRID" ? t("electricPowerHint") : t("vinHint")}</span>
                     </div>
                   )}
                 </div>
@@ -196,7 +236,16 @@ export function Calculator() {
             <div><Label>{t("engineVolume")}</Label><Input type="number" disabled={powertrainKind === "EV"} {...register("engine_volume_cc")} />{errors.engine_volume_cc && <p className="text-sm text-red-500">{errors.engine_volume_cc.message}</p>}</div>
             <div><Label>{t("carYear")}</Label><Input type="number" min={1990} max={currentYear} {...register("car_year")} />{errors.car_year && <p className="text-sm text-red-500">{errors.car_year.message}</p>}</div>
             <div><Label>{t("manufactureDate")}</Label><Input type="date" {...register("manufacture_date")} /><p className="text-xs text-muted-foreground mt-1">{t("manufactureDateHint")}</p>{errors.manufacture_date && <p className="text-sm text-red-500">{errors.manufacture_date.message}</p>}</div>
-            <div><Label>{t("horsePower")}</Label><Input type="number" step="0.01" {...register("horse_power")} />{errors.horse_power && <p className="text-sm text-red-500">{errors.horse_power.message}</p>}</div>
+            {usesElectricRegulatoryPower ? (
+              <div>
+                <Label>{t("electricPowerKw")}</Label>
+                <Input type="number" step="0.01" {...register("electric_power_kw")} />
+                <p className="text-xs text-muted-foreground mt-1">{t("electricPowerHint")}</p>
+                {errors.electric_power_kw && <p className="text-sm text-red-500">{errors.electric_power_kw.message}</p>}
+              </div>
+            ) : (
+              <div><Label>{t("horsePower")}</Label><Input type="number" step="0.01" {...register("horse_power")} />{errors.horse_power && <p className="text-sm text-red-500">{errors.horse_power.message}</p>}</div>
+            )}
             <div><Label>{t("mileage")}</Label><Input type="number" step="1000" {...register("mileage_km")} /><p className="text-xs text-muted-foreground mt-1">{t("mileageHint")}</p>{errors.mileage_km && <p className="text-sm text-red-500">{errors.mileage_km.message}</p>}</div>
             <div>
               <Label>{t("powertrainKind")}</Label>

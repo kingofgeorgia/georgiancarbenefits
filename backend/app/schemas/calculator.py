@@ -12,7 +12,8 @@ class CalculatorRequest(BaseModel):
     engine_volume_cc: int
     car_year: int
     manufacture_date: date | None = None
-    horse_power: float
+    horse_power: float | None = None
+    electric_power_kw: float | None = None
     mileage_km: int | None = None
     source_make: str | None = None
     source_model: str | None = None
@@ -80,6 +81,10 @@ class CalculatorResult(BaseModel):
     customs_total_rub: float
     logistics_cost_rub: float
     total_cost_rub: float
+    # Nullable/defaulted so immutable Deal Page snapshots created before this
+    # field existed remain readable. New calculations always populate both.
+    power_kw_used: float | None = None
+    power_basis: str | None = None
     savings_vs_rf_rub: float | None = None
     deal_assessment: DealAssessmentOut | None = None
     market_comparison: MarketComparisonOut | None = None
@@ -100,6 +105,7 @@ class CalculationOut(BaseModel):
     car_year: int
     manufacture_date: date | None = None
     horse_power: float | None = None
+    electric_power_kw: float | None = None
     util_coefficient: float | None = None
     powertrain_kind: PowertrainKind | None = None
     is_personal_use: bool = True
