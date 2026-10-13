@@ -8,7 +8,11 @@ import type { CalculatorResult } from "@/lib/types";
 import { TrendingDown, TrendingUp } from "lucide-react";
 
 function fmt(n: number) {
-  return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(n);
+  return new Intl.NumberFormat("ru-RU", {
+    style: "currency",
+    currency: "RUB",
+    maximumFractionDigits: 0,
+  }).format(n);
 }
 
 interface Props {
@@ -17,9 +21,12 @@ interface Props {
 
 export function CalculatorResults({ result }: Props) {
   const t = useTranslations("calculator.results");
-
   const hasSavings = result.savings_vs_rf_rub != null;
   const isProfit = hasSavings && result.savings_vs_rf_rub! > 0;
+  const customsTotal =
+    (result.customs_fee_rub ?? 0) +
+    result.customs_duty_rub +
+    result.recycling_fee_rub;
 
   return (
     <Card>
@@ -28,15 +35,15 @@ export function CalculatorResults({ result }: Props) {
       </CardHeader>
       <CardContent className="space-y-3">
         <Row label={t("carPrice")} value={fmt(result.car_price_rub)} />
+        {result.customs_fee_rub != null && (
+          <Row label="Таможенный сбор" value={fmt(result.customs_fee_rub)} />
+        )}
         <Row label={t("customsDuty")} value={fmt(result.customs_duty_rub)} />
         <Row label={t("recyclingFee")} value={fmt(result.recycling_fee_rub)} />
+        <Row label="Общая растаможка" value={fmt(customsTotal)} bold />
         <Row label={t("logistics")} value={fmt(result.logistics_cost_rub)} />
         <Separator />
-        <Row
-          label={t("total")}
-          value={fmt(result.total_cost_rub)}
-          bold
-        />
+        <Row label={t("total")} value={fmt(result.total_cost_rub)} bold />
 
         {hasSavings && (
           <div
@@ -44,10 +51,13 @@ export function CalculatorResults({ result }: Props) {
               isProfit ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
             }`}
           >
-            {isProfit ? <TrendingDown className="h-5 w-5" /> : <TrendingUp className="h-5 w-5" />}
+            {isProfit ? (
+              <TrendingDown className="h-5 w-5" />
+            ) : (
+              <TrendingUp className="h-5 w-5" />
+            )}
             <span>
-              {isProfit ? t("savings") : t("overpay")}:{" "}
-              {fmt(Math.abs(result.savings_vs_rf_rub!))}
+              {isProfit ? t("savings") : t("overpay")}: {fmt(Math.abs(result.savings_vs_rf_rub!))}
             </span>
             <Badge variant={isProfit ? "default" : "destructive"}>
               {isProfit ? "Выгодно!" : "Не выгодно"}
@@ -55,7 +65,7 @@ export function CalculatorResults({ result }: Props) {
           </div>
         )}
 
-        <div className="mt-4 text-xs text-gray-400 flex gap-4">
+        <div className="mt-4 text-xs text-gray-400 flex gap-4 flex-wrap">
           <span>USD = {result.rates.usd_to_rub.toFixed(2)} ₽</span>
           <span>EUR = {result.rates.eur_to_rub.toFixed(2)} ₽</span>
           <span>GEL = {result.rates.gel_to_rub.toFixed(2)} ₽</span>

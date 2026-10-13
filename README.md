@@ -1,153 +1,63 @@
-# 🇬🇪 Georgian Car Benefits
+# MileON Import Calculator
 
-Веб-приложение для расчёта и сравнения стоимости покупки автомобиля из Грузии с доставкой в Россию.
+Full-stack Georgia → Russia car import calculator built with FastAPI, Next.js, PostgreSQL and Docker.
 
-**Что делает приложение:**
-- Считает таможенные пошлины РФ (по объёму двигателя, году выпуска, стоимости авто)
-- Считает утилизационный сбор
-- Переводит цены из USD / EUR / GEL в рубли по актуальному курсу
-- Учитывает стоимость логистики Грузия → РФ
-- Сравнивает итоговую стоимость с ценой аналогичного авто в РФ
-- Показывает каталог авто с myauto.ge с предварительным расчётом для каждого
-- Сохраняет историю расчётов для авторизованных пользователей
+The application estimates the total cost of buying a vehicle in Georgia and importing it to Russia for personal use. It combines vehicle price, customs fees, unified customs duty, recycling fee, logistics and optional Russia-market comparison.
 
----
+> **Important:** calculations are estimates. Customs and recycling rules change over time and must be verified against official sources for the actual declaration date.
 
-## Стек технологий
+## Features
 
-| Слой | Технология |
+- Personal-use import calculation for passenger cars
+- 2026 customs fee bands
+- Unified customs rate calculation by vehicle value, engine size and age
+- Recycling-fee calculation using engine size, power and powertrain type
+- ICE, hybrid, series-hybrid and EV support
+- USD / EUR / GEL currency conversion
+- myauto.ge vehicle import workflow
+- Comparison with an equivalent vehicle price in Russia
+- Authenticated calculation history
+- Russian, English and Georgian UI
+- Docker-based local environment
+- Backend regression tests and GitHub Actions CI
+
+## Stack
+
+| Layer | Technology |
 |---|---|
-| Backend | Python 3.12 + FastAPI + SQLAlchemy 2 + Alembic |
-| База данных | PostgreSQL 16 |
-| Frontend | Next.js 16 + TypeScript + Tailwind CSS + shadcn/ui |
-| Авторизация | JWT (python-jose) + bcrypt |
-| i18n | next-intl — Русский / English / ქართული |
-| Курсы валют | exchangerate.host API (кэш 1 ч) |
-| Каталог авто | myauto.ge публичный API |
-| Контейнеры | Docker + docker-compose |
+| Backend | Python 3.12, FastAPI, SQLAlchemy 2, Alembic |
+| Database | PostgreSQL 16 |
+| Frontend | Next.js 16, React, TypeScript, Tailwind CSS |
+| Validation | Pydantic, Zod |
+| Auth | JWT |
+| i18n | next-intl |
+| Containers | Docker Compose |
+| Quality | pytest, Ruff, ESLint, TypeScript |
 
----
-
-## Быстрый старт (Docker)
-
-### Требования
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-
-### Запуск
+## Quick start
 
 ```bash
 git clone https://github.com/kingofgeorgia/georgiancarbenefits.git
 cd georgiancarbenefits
-
-# Скопировать конфиг
 cp .env.example .env
-
-# Запустить все сервисы
-docker-compose up --build
+docker compose up --build
 ```
 
-### Применить миграции БД (первый запуск — в отдельном терминале)
+Frontend: `http://localhost:3000`
 
-```bash
-docker-compose exec backend alembic revision --autogenerate -m "init"
-docker-compose exec backend alembic upgrade head
-```
+API docs: `http://localhost:8000/docs`
 
-### Открыть в браузере
-
-| URL | Описание |
-|---|---|
-| http://localhost:3000 | Приложение |
-| http://localhost:8000/docs | API документация (Swagger) |
-| http://localhost:8000/redoc | API документация (ReDoc) |
-
----
-
-## Структура проекта
-
-```
-georgiancarbenefits/
-├── backend/
-│   ├── app/
-│   │   ├── api/          # Роутеры: auth, calculator, cars, history
-│   │   ├── core/         # config, db, security (JWT)
-│   │   ├── models/       # SQLAlchemy: User, Calculation
-│   │   ├── schemas/      # Pydantic схемы
-│   │   └── services/     # customs, recycling, currency, myauto
-│   ├── alembic/          # Миграции БД
-│   └── requirements.txt
-├── frontend/
-│   ├── messages/         # Переводы: ru.json, en.json, ka.json
-│   └── src/
-│       ├── app/[locale]/ # Next.js App Router с i18n
-│       ├── components/   # Calculator, Auth, CarCatalog, History, Navbar
-│       ├── i18n/         # next-intl конфигурация
-│       └── lib/          # API клиент, типы, утилиты
-├── docker-compose.yml
-└── .env.example
-```
-
----
-
-## API эндпоинты
-
-### Auth
-| Метод | URL | Описание |
-|---|---|---|
-| POST | `/auth/register` | Регистрация |
-| POST | `/auth/login` | Вход, возвращает JWT |
-| GET | `/auth/me` | Текущий пользователь |
-
-### Калькулятор
-| Метод | URL | Описание |
-|---|---|---|
-| POST | `/calculator/total` | Полный расчёт стоимости ввоза |
-| GET | `/calculator/rates` | Актуальные курсы валют |
-
-### Каталог авто
-| Метод | URL | Описание |
-|---|---|---|
-| GET | `/cars/search` | Поиск авто на myauto.ge с расчётом |
-| GET | `/cars/makes` | Список марок |
-
-### История
-| Метод | URL | Описание |
-|---|---|---|
-| POST | `/history/` | Сохранить расчёт |
-| GET | `/history/` | Список расчётов пользователя |
-| DELETE | `/history/{id}` | Удалить расчёт |
-
----
-
-## Переменные окружения (.env)
-
-```env
-POSTGRES_USER=gcb_user
-POSTGRES_PASSWORD=gcb_password
-POSTGRES_DB=gcb_db
-POSTGRES_HOST=postgres
-POSTGRES_PORT=5432
-
-SECRET_KEY=your_secret_key_min_32_chars
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=60
-
-FRONTEND_ORIGIN=http://localhost:3000
-```
-
----
-
-## Разработка без Docker
+## Development
 
 ### Backend
 
 ```bash
 cd backend
-python3 -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-
-# Запустить (нужен запущенный PostgreSQL)
+pytest -q
+ruff check app tests
 uvicorn app.main:app --reload
 ```
 
@@ -155,25 +65,90 @@ uvicorn app.main:app --reload
 
 ```bash
 cd frontend
-npm install
+npm ci
+npm run lint
+npm run typecheck
+npm run build
 npm run dev
 ```
 
----
+## Calculation model
 
-## Полезные команды
+The current primary calculation path is `backend/app/services/personal_import_customs.py`.
+
+It calculates:
+
+- customs value in RUB / EUR
+- customs processing fee
+- unified customs duty
+- recycling coefficient
+- recycling fee
+- matched value / engine / power bands for diagnostics
+
+The public calculator endpoint is:
+
+```text
+POST /calculator/total
+```
+
+A one-off calculation does not require authentication. User-specific functionality such as calculation history can remain authenticated.
+
+## Testing
+
+Regression tests currently cover representative scenarios including:
+
+- premium ICE vehicle control case
+- hp → kW conversion
+- customs-fee upper band
+- 3000 cc boundary condition
+- preferential low-power recycling coefficients
+- EV with zero engine displacement
+
+Run:
 
 ```bash
-# Остановить контейнеры
-docker-compose down
-
-# Остановить и удалить данные БД
-docker-compose down -v
-
-# Логи конкретного сервиса
-docker-compose logs -f backend
-docker-compose logs -f frontend
-
-# Пересобрать после изменений
-docker-compose up --build
+cd backend
+pytest -q
 ```
+
+## Project structure
+
+```text
+georgiancarbenefits/
+├── .github/workflows/ci.yml
+├── backend/
+│   ├── app/
+│   │   ├── api/
+│   │   ├── core/
+│   │   ├── models/
+│   │   ├── schemas/
+│   │   └── services/
+│   ├── tests/
+│   └── alembic/
+├── frontend/
+│   ├── messages/
+│   └── src/
+├── docs/
+├── docker-compose.yml
+└── .env.example
+```
+
+## Security
+
+- Never commit `.env` or production secrets.
+- Replace example credentials before deployment.
+- Do not expose PostgreSQL directly to the internet in production.
+- Treat external vehicle and exchange-rate data as untrusted input.
+
+## Roadmap
+
+- exact manufacture-date based age calculation
+- official exchange-rate provider with timestamp/staleness metadata
+- tariff rulesets moved from Python constants to versioned data files
+- deeper myauto.ge enrichment and vehicle-spec lookup
+- production Docker profile and reverse proxy
+- MileON Cars lead-generation CTA
+
+## License
+
+License not specified yet.
