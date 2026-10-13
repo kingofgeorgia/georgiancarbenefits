@@ -28,9 +28,23 @@ function Invoke-Checked {
         [Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments
     )
 
-    & $FilePath @Arguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "Command failed with exit code ${LASTEXITCODE}: $FilePath $($Arguments -join ' ')"
+    # Windows PowerShell can promote native stderr output (including harmless
+    # Docker warnings) to NativeCommandError when ErrorActionPreference=Stop.
+    # Let the native command run, then use its real process exit code to decide
+    # whether the command failed.
+    $previousErrorActionPreference = $ErrorActionPreference
+    $exitCode = 0
+    try {
+        $ErrorActionPreference = "Continue"
+        & $FilePath @Arguments
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    if ($exitCode -ne 0) {
+        throw "Command failed with exit code ${exitCode}: $FilePath $($Arguments -join ' ')"
     }
 }
 
