@@ -51,6 +51,9 @@ export interface VinDecodeResult {
   displacement_cc?: number | null;
   engine_kw?: number | null;
   horse_power?: number | null;
+  horse_power_source?: string | null;
+  electric_power_kw?: number | null;
+  electric_power_kw_source?: string | null;
   drive_type?: string | null;
   transmission_style?: string | null;
   plant_country?: string | null;
@@ -101,7 +104,8 @@ export interface CalculatorRequest {
   engine_volume_cc: number;
   car_year: number;
   manufacture_date?: string | null;
-  horse_power: number;
+  horse_power?: number | null;
+  electric_power_kw?: number | null;
   mileage_km?: number | null;
   powertrain_kind?: PowertrainKind | null;
   is_personal_use?: boolean;
@@ -126,6 +130,8 @@ export interface CalculatorResult {
   customs_total_rub: number;
   logistics_cost_rub: number;
   total_cost_rub: number;
+  power_kw_used: number;
+  power_basis: string;
   savings_vs_rf_rub?: number | null;
   deal_assessment?: DealAssessment | null;
   market_comparison?: MarketComparison | null;
@@ -202,6 +208,8 @@ export interface CarListing {
   engine_volume_cc: number;
   horse_power?: number | null;
   horse_power_source?: string | null;
+  electric_power_kw?: number | null;
+  electric_power_kw_source?: string | null;
   fuel_type?: string | null;
   util_coefficient?: number | null;
   powertrain_kind?: PowertrainKind | null;
