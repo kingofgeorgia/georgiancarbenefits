@@ -19,7 +19,7 @@ for (const copy of copies) {
       await page.locator(`[name="${name}"]`).fill(value);
     }
     await page.route("**/calculator/total", (route) => route.fulfill({
-      status: 429, contentType: "application/json", headers: { "Retry-After": "60" }, body: JSON.stringify({ detail: "Too many requests" }),
+      status: 429, contentType: "application/json", headers: { "Retry-After": "60", "Access-Control-Allow-Origin": new URL(page.url()).origin }, body: JSON.stringify({ detail: "Too many requests" }),
     }));
     await page.getByRole("button", { name: copy.calculate, exact: true }).click();
     await expect(page.getByText(copy.rate, { exact: true })).toBeVisible();
@@ -32,7 +32,7 @@ for (const copy of copies) {
     await page.getByRole("button", { name: copy.calculate, exact: true }).click();
     expect((await calculated).status()).toBe(200);
     await expect(page.getByRole("button", { name: copy.share, exact: true })).toBeVisible();
-    await page.route("**/deals/", (route) => route.fulfill({ status: 413, contentType: "application/json", body: JSON.stringify({ detail: "Request body is too large" }) }));
+    await page.route("**/deals/", (route) => route.fulfill({ status: 413, contentType: "application/json", headers: { "Access-Control-Allow-Origin": new URL(page.url()).origin }, body: JSON.stringify({ detail: "Request body is too large" }) }));
     await page.getByRole("button", { name: copy.share, exact: true }).click();
     await expect(page.getByText(copy.size, { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: copy.share, exact: true })).toBeEnabled();
