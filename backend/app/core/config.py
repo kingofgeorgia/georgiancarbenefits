@@ -30,13 +30,19 @@ class Settings(BaseSettings):
     nhtsa_vpic_timeout_seconds: float = 10.0
     nhtsa_vpic_cache_ttl_seconds: int = 86400
 
-    auto_ru_business_api_url: str = "https://appraisal.api.cm.expert/v1"
-    auto_ru_business_token: str | None = None
-    auto_ru_business_sources: str = "auto_ru"
-    auto_ru_business_liquidity_region_id: int = 1960671
-    auto_ru_business_timeout_seconds: float = 10.0
-    auto_ru_market_similar_threshold: int = 10
-    auto_ru_market_cache_ttl_seconds: int = 3600
+    # Drom Search API. Automatic extraction from Drom is only enabled after
+    # authorized API/database access has been confirmed with Drom.
+    drom_api_url: str = "https://api.drom.ru/v1.2"
+    drom_api_access_confirmed: bool = False
+    drom_api_auth_query_json: str = "{}"
+    drom_vehicle_id_map_json: str = "{}"
+    drom_market_timeout_seconds: float = 10.0
+    drom_market_pages: int = 3
+    drom_market_min_samples: int = 5
+    drom_market_trim_fraction: float = 0.10
+    drom_market_mileage_window_percent: float = 0.35
+    drom_market_mileage_window_min_km: int = 30_000
+    drom_market_cache_ttl_seconds: int = 3600
 
     @model_validator(mode="after")
     def validate_production_security(self):
