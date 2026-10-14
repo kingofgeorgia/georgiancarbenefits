@@ -16,6 +16,19 @@ class CarUrlRequest(BaseModel):
     url: str
 
 
+def _extract_myauto_car_id(source: str) -> int | None:
+    value = source.strip()
+    if value.isdigit():
+        car_id = int(value)
+        return car_id if car_id > 0 else None
+
+    match = re.search(r"/pr/(\d+)(?:[/?#]|$)", value)
+    if not match:
+        return None
+    car_id = int(match.group(1))
+    return car_id if car_id > 0 else None
+
+
 def _has_required_power(car: CarListing) -> bool:
     if car.powertrain_kind in ("EV", "SERIES_HYBRID"):
         return bool(car.electric_power_kw and car.electric_power_kw > 0)
@@ -97,14 +110,16 @@ async def get_models(make_id: int = Query(..., ge=1)) -> list[CarModelOption]:
 
 @router.post("/from-url", response_model=CarListing)
 async def car_from_url(payload: CarUrlRequest):
-    """Accept a myauto.ge listing URL and return normalized vehicle data."""
-    match = re.search(r"/pr/(\d+)", payload.url.strip())
-    if not match:
+    """Accept a myauto.ge listing URL or numeric listing ID and return normalized vehicle data."""
+    car_id = _extract_myauto_car_id(payload.url)
+    if car_id is None:
         raise HTTPException(
             status_code=422,
-            detail="Некорректная ссылка myauto.ge. Ожидается формат: https://www.myauto.ge/.../pr/12345",
+            detail=(
+                "Некорректная ссылка или ID myauto.ge. Ожидается полный URL объявления "
+                "или числовой ID, например 123673764"
+            ),
         )
-    car_id = int(match.group(1))
     raw = await myauto.get_car_by_id(car_id)
     if not raw:
         raise HTTPException(status_code=404, detail="Автомобиль не найден на myauto.ge")
