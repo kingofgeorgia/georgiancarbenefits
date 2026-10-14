@@ -58,7 +58,8 @@ export function SharedDealView({ publicId }: { publicId: string }) {
   const deal = result.deal_assessment;
   const market = result.market_comparison;
   const title = [vehicle?.make ?? request.source_make, vehicle?.model ?? request.source_model, vehicle?.year ?? request.car_year].filter(Boolean).join(" ") || text.heading;
-  const lead = `${text.order}: ${title}. ${t("total")}: ${fmt(result.total_cost_rub)}. Deal Score: ${deal?.score ?? "—"}/100. https://mileon.ge/${locale}/deal/${publicId}`;
+  const publicUrl = `${typeof window === "undefined" ? "" : window.location.origin}/${locale}/deal/${publicId}`;
+  const lead = `${text.order}: ${title}. ${t("total")}: ${fmt(result.total_cost_rub)}. Deal Score: ${deal?.score ?? "—"}/100.${vehicle?.vin ? ` VIN: ${vehicle.vin}.` : ""} ${publicUrl}`;
   const isAggregate = result.customs_payment_kind === "AGGREGATE_PAYMENT";
   const powerKw = result.power_kw_used ?? null;
   const excisePowerHp = isAggregate && powerKw != null ? powerKw * METRIC_HP_PER_KW : null;

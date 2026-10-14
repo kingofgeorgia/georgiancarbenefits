@@ -10,6 +10,8 @@ build/
 # Node
 node_modules/
 .next/
+playwright-report/
+test-results/
 out/
 
 # Env

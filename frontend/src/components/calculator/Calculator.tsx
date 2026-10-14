@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -14,12 +14,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Link2, RotateCcw, ScanLine, X } from "lucide-react";
 import { api } from "@/lib/api";
-import type { CalculatorRequest, CalculatorResult, CarListing, PowertrainKind, VinDecodeResult } from "@/lib/types";
+import type { CalculatorRequest, CalculatorResult, CarListing, DealVehicleSnapshot, PowertrainKind, VinDecodeResult } from "@/lib/types";
 import { CalculatorResults } from "./CalculatorResults";
 import { CurrencyRatesWidget } from "./CurrencyRatesWidget";
 import { ShareDealButton } from "./ShareDealButton";
 
 const currentYear = new Date().getFullYear();
+
+interface CalculationSnapshot {
+  request: CalculatorRequest;
+  vehicle: DealVehicleSnapshot;
+}
 
 const uiCopy = {
   ru: {
@@ -54,7 +59,7 @@ export function Calculator() {
   const [vin, setVin] = useState("");
   const [loadedCar, setLoadedCar] = useState<CarListing | null>(null);
   const [decodedVin, setDecodedVin] = useState<VinDecodeResult | null>(null);
-  const lastPayloadRef = useRef<CalculatorRequest | null>(null);
+  const [calculation, setCalculation] = useState<(CalculationSnapshot & { result: CalculatorResult }) | null>(null);
 
   const optionalPositiveNumber = z.preprocess(
     (value) => value === "" || value == null ? null : Number(value),
@@ -116,6 +121,9 @@ export function Calculator() {
   const urlMutation = useMutation({
     mutationFn: (source: string) => api.post<CarListing>("/cars/from-url", { url: source }).then((r) => r.data),
     onSuccess: (car) => {
+      setCalculation(null);
+      setDecodedVin(null);
+      setVin("");
       setLoadedCar(car);
       setValue("car_price_usd", car.price_usd);
       setValue("engine_volume_cc", car.powertrain_kind === "EV" ? 0 : car.engine_volume_cc);
@@ -139,19 +147,28 @@ export function Calculator() {
         return;
       }
 
+      setCalculation(null);
+      const identity = (value: string | null | undefined) => (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const matchesListing = loadedCar && identity(loadedCar.make) === identity(vehicle.make)
+        && identity(loadedCar.model) === identity(vehicle.model) && loadedCar.year === vehicle.model_year;
+      if (loadedCar && !matchesListing) {
+        setLoadedCar(null);
+        setCarSource("");
+        setValue("car_price_usd", 0);
+        setValue("mileage_km", null);
+      }
       setDecodedVin(vehicle);
       setVin(vehicle.vin);
-      if (vehicle.model_year) setValue("car_year", vehicle.model_year);
-      if (vehicle.displacement_cc != null) setValue("engine_volume_cc", vehicle.displacement_cc);
-      if (vehicle.powertrain_kind) {
-        setValue("powertrain_kind", vehicle.powertrain_kind);
-        if (vehicle.powertrain_kind === "EV") setValue("engine_volume_cc", 0);
-      }
+      setValue("car_year", vehicle.model_year ?? 0);
+      setValue("manufacture_date", null);
+      setValue("engine_volume_cc", vehicle.powertrain_kind === "EV" ? 0 : vehicle.displacement_cc ?? 0);
+      setValue("powertrain_kind", vehicle.powertrain_kind ?? "ICE");
       if (vehicle.powertrain_kind === "EV" || vehicle.powertrain_kind === "SERIES_HYBRID") {
         setValue("horse_power", null);
         setValue("electric_power_kw", vehicle.electric_power_kw ?? null);
-      } else if (vehicle.horse_power != null) {
-        setValue("horse_power", vehicle.horse_power);
+      } else {
+        setValue("horse_power", vehicle.horse_power ?? null);
+        setValue("electric_power_kw", null);
       }
 
       if (vehicle.status === "PARTIAL") {
@@ -164,7 +181,9 @@ export function Calculator() {
   });
 
   const calcMutation = useMutation({
-    mutationFn: (data: CalculatorRequest) => api.post<CalculatorResult>("/calculator/total", data).then((r) => r.data),
+    mutationFn: (snapshot: CalculationSnapshot) => api.post<CalculatorResult>("/calculator/total", snapshot.request).then((r) => r.data),
+    onMutate: () => setCalculation(null),
+    onSuccess: (result, snapshot) => setCalculation({ ...snapshot, result }),
     onError: () => toast.error(tErr("generic")),
   });
 
@@ -179,7 +198,7 @@ export function Calculator() {
     setVin("");
     setLoadedCar(null);
     setDecodedVin(null);
-    lastPayloadRef.current = null;
+    setCalculation(null);
     reset();
     urlMutation.reset();
     vinMutation.reset();
@@ -205,8 +224,19 @@ export function Calculator() {
       auto_market_comparison: data.auto_market_comparison,
       note: data.note ?? null,
     };
-    lastPayloadRef.current = payload;
-    calcMutation.mutate(payload);
+    calcMutation.mutate({
+      request: payload,
+      vehicle: {
+        make: payload.source_make,
+        model: payload.source_model,
+        year: payload.car_year,
+        mileage_km: payload.mileage_km,
+        price_usd: payload.car_price_usd,
+        image_url: loadedCar?.image_url ?? null,
+        source_url: loadedCar?.url ?? null,
+        vin: decodedVin?.vin ?? null,
+      },
+    });
   }
 
   const resetDisabled = urlMutation.isPending || vinMutation.isPending || calcMutation.isPending || saveMutation.isPending;
@@ -230,7 +260,7 @@ export function Calculator() {
                 <Button
                   type="button"
                   variant="secondary"
-                  disabled={!carSource.trim() || urlMutation.isPending}
+                  disabled={!carSource.trim() || urlMutation.isPending || vinMutation.isPending || calcMutation.isPending}
                   onClick={() => urlMutation.mutate(carSource.trim())}
                 >
                   {urlMutation.isPending ? "..." : t("urlLoad")}
@@ -256,7 +286,7 @@ export function Calculator() {
               <Label className="flex items-center gap-1"><ScanLine className="h-4 w-4" /> {t("vinLabel")}</Label>
               <div className="flex gap-2">
                 <Input maxLength={17} placeholder={t("vinPlaceholder")} value={vin} onChange={(e) => setVin(e.target.value.toUpperCase())} className="flex-1 font-mono" />
-                <Button type="button" variant="secondary" disabled={vin.length !== 17 || vinMutation.isPending} onClick={() => vinMutation.mutate(vin)}>{vinMutation.isPending ? "..." : t("vinLoad")}</Button>
+                <Button type="button" variant="secondary" disabled={vin.length !== 17 || vinMutation.isPending || urlMutation.isPending || calcMutation.isPending} onClick={() => vinMutation.mutate(vin)}>{vinMutation.isPending ? "..." : t("vinLoad")}</Button>
               </div>
               <p className="text-xs text-muted-foreground">{t("vinHint")}</p>
               {decodedVin && (
@@ -330,22 +360,22 @@ export function Calculator() {
 
             <div><Label>{t("note")}</Label><Input {...register("note")} /></div>
             <div className="md:col-span-2 flex flex-wrap gap-3">
-              <Button type="submit" disabled={calcMutation.isPending}>{calcMutation.isPending ? "..." : t("calculate")}</Button>
+              <Button type="submit" disabled={calcMutation.isPending || urlMutation.isPending || vinMutation.isPending}>{calcMutation.isPending ? "..." : t("calculate")}</Button>
               <Button type="button" variant="outline" onClick={resetCalculator} disabled={resetDisabled}>
                 <RotateCcw className="mr-2 h-4 w-4" />
                 {copy.reset}
               </Button>
-              {calcMutation.data && <Button type="button" variant="outline" onClick={() => lastPayloadRef.current && saveMutation.mutate(lastPayloadRef.current)} disabled={saveMutation.isPending}>{t("saveToHistory")}</Button>}
+              {calculation && <Button type="button" variant="outline" onClick={() => saveMutation.mutate(calculation.request)} disabled={saveMutation.isPending}>{t("saveToHistory")}</Button>}
             </div>
           </form>
         </CardContent>
       </Card>
 
-      {calcMutation.data && lastPayloadRef.current && (
+      {calculation && (
         <>
-          <CalculatorResults result={calcMutation.data} vehicle={loadedCar} />
+          <CalculatorResults result={calculation.result} vehicle={calculation.vehicle} />
           <div className="flex justify-end">
-            <ShareDealButton request={lastPayloadRef.current} result={calcMutation.data} vehicle={loadedCar} vinVehicle={decodedVin} />
+            <ShareDealButton request={calculation.request} result={calculation.result} vehicle={calculation.vehicle} />
           </div>
         </>
       )}
