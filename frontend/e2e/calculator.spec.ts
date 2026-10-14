@@ -6,6 +6,22 @@ const myauto = (page: Page) => page.getByPlaceholder(/https:\/\/www.myauto.ge/);
 const vin = (page: Page) => page.getByPlaceholder(/17-значный VIN/);
 const shareButton = (page: Page) => page.getByRole("button", { name: "Поделиться расчётом" });
 const runtimeErrors = new WeakMap<Page, string[]>();
+const rub = (value: number) => new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(value);
+
+async function expectRow(page: Page, label: string | RegExp, value: number) {
+  await expect(page.getByText(label, { exact: true }).locator("..")).toContainText(rub(value));
+}
+
+async function expectNoHorizontalOverflow(page: Page) {
+  const layout = await page.evaluate(() => ({
+    width: window.innerWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    overflowing: Array.from(document.querySelectorAll("body *"))
+      .filter((element) => element.getBoundingClientRect().right > window.innerWidth + 1)
+      .slice(0, 12).map((element) => ({ tag: element.tagName, class: element.className, text: element.textContent?.slice(0, 80) })),
+  }));
+  expect(layout.scrollWidth, JSON.stringify(layout)).toBeLessThanOrEqual(layout.width);
+}
 
 async function load(page: Page, source: string) {
   await myauto(page).fill(source);
@@ -58,8 +74,8 @@ for (const scenario of [
   { kind: "OTHER_HYBRID", id: "1002" },
   { kind: "SERIES_HYBRID", id: "1002" },
   { kind: "EV", id: "1003" },
-]) {
-  test(`${scenario.kind} taxes reconcile with the displayed and shared total`, async ({ page, context }) => {
+] as const) {
+  test(`${scenario.kind} taxes reconcile with the displayed and shared total`, async ({ page, context }, testInfo) => {
     await load(page, scenario.id);
     await field(page, "powertrain_kind").selectOption(scenario.kind);
     if (["EV", "SERIES_HYBRID"].includes(scenario.kind)) {
@@ -68,6 +84,11 @@ for (const scenario of [
     const result = await calculate(page);
     expect(result.customs_total_rub).toBeCloseTo(result.customs_fee_rub + result.customs_duty_rub + result.recycling_fee_rub, 2);
     expect(result.total_cost_rub).toBeCloseTo(result.car_price_rub + result.customs_total_rub + result.logistics_cost_rub, 2);
+    expect(result.recycling_fee_rub).toBe({ ICE: 3400, OTHER_HYBRID: 5200, SERIES_HYBRID: 3024000, EV: 2193600 }[scenario.kind]);
+    await expectRow(page, "Таможенный сбор", result.customs_fee_rub);
+    await expectRow(page, "Утилизационный сбор", result.recycling_fee_rub);
+    await expectRow(page, "Общая растаможка", result.customs_total_rub);
+    await expectRow(page, "Итого к оплате", result.total_cost_rub);
     if (scenario.kind === "EV") {
       expect(result.customs_payment_kind).toBe("AGGREGATE_PAYMENT");
       expect(result.import_duty_rub).toBe(405000);
@@ -76,12 +97,16 @@ for (const scenario of [
       expect(result.customs_duty_rub).toBe(1342899.54);
       await expect(page.getByText("НДС (22%)", { exact: true })).toBeVisible();
       await expect(page.getByText(/Акциз \(с мощности/)).toBeVisible();
+      await expectRow(page, "Ввозная пошлина", result.import_duty_rub);
+      await expectRow(page, /Акциз \(с мощности/, result.excise_rub);
+      await expectRow(page, "НДС (22%)", result.vat_rub);
     } else {
       expect(result.customs_payment_kind).toBe("UNIFIED_RATE");
       expect(result.excise_rub).toBe(0);
       expect(result.vat_rub).toBe(0);
       expect(result.customs_duty_rub).toBe(scenario.kind === "ICE" ? 1296000 : 449500);
       await expect(page.getByText("Единая таможенная ставка", { exact: true })).toBeVisible();
+      await expectRow(page, "Единая таможенная ставка", result.customs_duty_rub);
     }
     const { created, payload } = await share(page);
     expect(payload.result).toEqual(result);
@@ -91,11 +116,18 @@ for (const scenario of [
     publicPage.on("pageerror", (error) => publicErrors.push(error.message));
     await publicPage.goto(`${new URL(page.url()).origin}/ru/deal/${created.public_id}`);
     await expect(publicPage.getByText("Итого к оплате", { exact: true })).toBeVisible();
+    await expectRow(publicPage, "Итого к оплате", result.total_cost_rub);
     const href = await publicPage.getByRole("link", { name: "Заказать этот автомобиль через MileON" }).getAttribute("href");
     expect(new URL(href!).searchParams.get("text")).toContain(`${new URL(page.url()).origin}/ru/deal/${created.public_id}`);
     const snapshot = await publicPage.request.get(`${process.env.E2E_API_URL ?? "http://localhost:8000"}/deals/${created.public_id}`);
     const saved: DealShareOut = await snapshot.json();
     expect(saved.snapshot.result).toEqual(result);
+    if (scenario.kind === "EV") {
+      await testInfo.attach("desktop-ev-result", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+      await publicPage.setViewportSize({ width: 390, height: 844 });
+      await testInfo.attach("mobile-shared-deal", { body: await publicPage.screenshot({ fullPage: true }), contentType: "image/png" });
+      await expectNoHorizontalOverflow(publicPage);
+    }
     expect(publicErrors).toEqual([]);
     await fresh.close();
   });
@@ -105,14 +137,14 @@ test("manual edits and vehicle switches cannot mix Share Deal data", async ({ pa
   await load(page, "1001");
   await field(page, "car_price_usd").fill("31000");
   await field(page, "car_year").fill(String(new Date().getFullYear() - 1));
-  await field(page, "mileage_km").fill("27000");
+  await field(page, "mileage_km").fill("27123");
   const result = await calculate(page);
   await field(page, "car_price_usd").fill("32000");
   const { payload } = await share(page);
   expect(payload.request.car_price_usd).toBe(31000);
   expect(payload.vehicle.price_usd).toBe(31000);
   expect(payload.vehicle.year).toBe(payload.request.car_year);
-  expect(payload.vehicle.mileage_km).toBe(27000);
+  expect(payload.vehicle.mileage_km).toBe(27123);
   expect(payload.result).toEqual(result);
   await load(page, "1002");
   await expect(shareButton(page)).toHaveCount(0);
@@ -148,8 +180,24 @@ test("EV VIN requires regulatory power and produces a readable mobile result", a
   const result = await calculate(page);
   expect(result.power_basis).toBe("MAX_30_MINUTE_ELECTRIC_POWER_KW");
   expect(result.power_kw_used).toBe(153);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await testInfo.attach("mobile-ev-result", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+  await expectNoHorizontalOverflow(page);
+  await page.setViewportSize({ width: 320, height: 740 });
+  await expectNoHorizontalOverflow(page);
+});
+
+test("exact MyAuto mileage remains calculable after manual missing-horsepower entry", async ({ page }) => {
+  await load(page, "1001");
+  await load(page, "1004");
+  await expect(field(page, "horse_power")).toHaveValue("");
+  await expect(field(page, "mileage_km")).toHaveValue("140851");
+  await page.getByRole("button", { name: "Рассчитать", exact: true }).click();
+  await expect(page.getByText("Обязательное поле", { exact: true })).toBeVisible();
+  await field(page, "horse_power").fill("150");
+  await calculate(page);
+  const { payload } = await share(page);
+  expect(payload.request.mileage_km).toBe(140851);
+  expect(payload.vehicle.make).toBe("Hyundai");
 });
 
 test("VIN autofill clears missing old specs and provides WhatsApp identity", async ({ page }) => {

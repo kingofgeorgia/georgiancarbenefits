@@ -29,7 +29,7 @@ export function Navbar() {
 
   return (
     <header className="border-b bg-white sticky top-0 z-10">
-      <div className="container mx-auto px-4 flex items-center justify-between h-14">
+      <div className="container mx-auto px-4 flex min-h-14 flex-wrap items-center justify-between gap-2 py-2">
         <Link href={`/${locale}`} className="flex items-center gap-2 font-semibold text-lg">
           <Car className="h-5 w-5 text-green-600" />
           <span>GeoCarBenefits</span>
@@ -47,7 +47,7 @@ export function Navbar() {
           </Link>
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Language switcher */}
           <div className="flex gap-1 text-xs border rounded-md overflow-hidden">
             {(["ru", "en", "ka"] as const).map((loc) => (

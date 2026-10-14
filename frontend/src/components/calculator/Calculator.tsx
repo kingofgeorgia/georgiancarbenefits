@@ -331,7 +331,7 @@ export function Calculator() {
             ) : (
               <div><Label>{t("horsePower")}</Label><Input type="number" step="0.01" {...register("horse_power")} />{errors.horse_power && <p className="text-sm text-red-500">{errors.horse_power.message}</p>}</div>
             )}
-            <div><Label>{t("mileage")}</Label><Input type="number" step="1000" {...register("mileage_km")} /><p className="text-xs text-muted-foreground mt-1">{t("mileageHint")}</p>{errors.mileage_km && <p className="text-sm text-red-500">{errors.mileage_km.message}</p>}</div>
+            <div><Label>{t("mileage")}</Label><Input type="number" step="1" {...register("mileage_km")} /><p className="text-xs text-muted-foreground mt-1">{t("mileageHint")}</p>{errors.mileage_km && <p className="text-sm text-red-500">{errors.mileage_km.message}</p>}</div>
             <div>
               <Label>{t("powertrainKind")}</Label>
               <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm" {...register("powertrain_kind")}>

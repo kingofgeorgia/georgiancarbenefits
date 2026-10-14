@@ -23,11 +23,14 @@ async def listing(car_id: int):
                "horse_power": 121, "fuel_type_id": 4, "price": 20000, "age": 4},
         1003: {"man_name": "Tesla", "model_name": "Model Y", "engine_volume": 0,
                "horse_power": 455, "fuel_type_id": 7, "price": 30000, "age": 2},
+        1004: {"man_name": "Hyundai", "model_name": "Elantra", "engine_volume": 2000,
+               "horse_power": None, "fuel_type_id": 2, "price": 8300, "age": 6},
     }
     raw = fixtures.get(car_id)
     if raw is None:
         return None
-    return {**raw, "car_id": car_id, "prod_year": date.today().year - raw["age"], "km": 25000}
+    return {**raw, "car_id": car_id, "prod_year": date.today().year - raw["age"],
+            "km": 140851 if car_id == 1004 else 25000}
 
 
 async def vin(value: str):
