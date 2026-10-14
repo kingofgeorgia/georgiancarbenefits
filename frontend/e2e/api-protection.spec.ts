@@ -23,9 +23,17 @@ for (const copy of copies) {
     }));
     await page.getByRole("button", { name: copy.calculate, exact: true }).click();
     await expect(page.getByText(copy.rate, { exact: true })).toBeVisible();
+    const notification = page.locator("[data-sonner-toast]").filter({ hasText: copy.rate });
+    await expect(notification).toHaveCSS("opacity", "1");
+    const bounds = await notification.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(321);
+    expect(bounds!.y).toBeGreaterThanOrEqual(0);
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(741);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     if (copy.locale === "ru") {
-      await testInfo.attach("mobile-rate-limit-error", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+      await testInfo.attach("mobile-rate-limit-error", { body: await page.screenshot({ animations: "disabled" }), contentType: "image/png" });
     }
     await page.unroute("**/calculator/total");
     const calculated = page.waitForResponse((response) => response.url().endsWith("/calculator/total") && response.request().method() === "POST");
