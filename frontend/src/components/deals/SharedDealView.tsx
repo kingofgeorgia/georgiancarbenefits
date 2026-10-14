@@ -128,6 +128,7 @@ export function SharedDealView({ publicId }: { publicId: string }) {
           <CardContent className="grid gap-3 sm:grid-cols-2">
             {market.similar_count != null && <Row label={t("marketSimilarCount")} value={String(market.similar_count)} />}
             {market.min_price_rub != null && <Row label={t("marketMinPrice")} value={fmt(market.min_price_rub)} />}
+            {market.median_price_rub != null && <Row label={t("marketMedianPrice")} value={fmt(market.median_price_rub)} />}
             {market.average_price_rub != null && <Row label={t("marketAveragePrice")} value={fmt(market.average_price_rub)} />}
             {market.market_midpoint_rub != null && <Row label={t("marketMidpointPrice")} value={fmt(market.market_midpoint_rub)} />}
             {market.max_price_rub != null && <Row label={t("marketMaxPrice")} value={fmt(market.max_price_rub)} />}
