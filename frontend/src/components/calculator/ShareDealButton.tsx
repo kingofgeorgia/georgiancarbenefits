@@ -10,17 +10,15 @@ import { api } from "@/lib/api";
 import type {
   CalculatorRequest,
   CalculatorResult,
-  CarListing,
   DealShareCreate,
   DealShareCreated,
-  VinDecodeResult,
+  DealVehicleSnapshot,
 } from "@/lib/types";
 
 interface Props {
   request: CalculatorRequest;
   result: CalculatorResult;
-  vehicle?: CarListing | null;
-  vinVehicle?: VinDecodeResult | null;
+  vehicle: DealVehicleSnapshot;
 }
 
 const copy = {
@@ -29,7 +27,7 @@ const copy = {
   ka: { button: "გამოთვლის გაზიარება", creating: "ბმული იქმნება...", copied: "საჯარო ბმული დაკოპირდა", created: "საჯარო ბმული შეიქმნა", error: "საჯარო ბმულის შექმნა ვერ მოხერხდა" },
 } as const;
 
-export function ShareDealButton({ request, result, vehicle, vinVehicle }: Props) {
+export function ShareDealButton({ request, result, vehicle }: Props) {
   const locale = useLocale();
   const text = copy[locale as keyof typeof copy] ?? copy.en;
 
@@ -38,16 +36,7 @@ export function ShareDealButton({ request, result, vehicle, vinVehicle }: Props)
       const snapshot: DealShareCreate = {
         request,
         result,
-        vehicle: {
-          make: vehicle?.make ?? vinVehicle?.make ?? request.source_make ?? null,
-          model: vehicle?.model ?? vinVehicle?.model ?? request.source_model ?? null,
-          year: vehicle?.year ?? vinVehicle?.model_year ?? request.car_year,
-          mileage_km: vehicle?.mileage_km ?? request.mileage_km ?? null,
-          price_usd: vehicle?.price_usd ?? request.car_price_usd,
-          image_url: vehicle?.image_url ?? null,
-          source_url: vehicle?.url ?? null,
-          vin: vinVehicle?.vin ?? null,
-        },
+        vehicle,
       };
       return api.post<DealShareCreated>("/deals/", snapshot).then((response) => response.data);
     },

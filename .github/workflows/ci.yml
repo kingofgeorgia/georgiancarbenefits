@@ -60,6 +60,69 @@ jobs:
             exit 1
           }
 
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: gcb_user
+          POSTGRES_PASSWORD: gcb_password
+          POSTGRES_DB: gcb_e2e
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U gcb_user -d gcb_e2e"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      POSTGRES_DB: gcb_e2e
+      POSTGRES_HOST: localhost
+      FRONTEND_ORIGIN: http://localhost:3000
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      DROM_API_ACCESS_CONFIRMED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: pip install -r backend/requirements.txt
+      - run: alembic upgrade head
+        working-directory: backend
+      - name: Start API with external-provider fixtures
+        run: PYTHONPATH=backend uvicorn e2e.provider_app:app --host 127.0.0.1 --port 8000 > backend-e2e.log 2>&1 &
+      - run: npm ci
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - name: Start frontend
+        working-directory: frontend
+        run: |
+          cp -R public .next/standalone/public
+          cp -R .next/static .next/standalone/.next/static
+          HOSTNAME=127.0.0.1 PORT=3000 node .next/standalone/server.js > ../frontend-e2e.log 2>&1 &
+      - name: Wait for API and frontend
+        run: |
+          curl --fail --retry 30 --retry-delay 2 --retry-connrefused http://localhost:8000/health
+          curl --fail --retry 30 --retry-delay 2 --retry-connrefused http://localhost:3000/ru > /dev/null
+      - run: npm run test:e2e
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-report
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+            *-e2e.log
+
   production-docker:
     runs-on: ubuntu-latest
     steps:

@@ -175,6 +175,25 @@ npm run build
 npm run dev
 ```
 
+### Full-stack E2E
+
+The CI `e2e` job runs Chromium against the production frontend, real FastAPI
+routes, and a fresh PostgreSQL database. Only MyAuto, NHTSA and exchange-rate
+responses are replaced by deterministic fixtures in `e2e/provider_app.py`.
+It covers URL/ID loading, VIN autofill, all four powertrain paths, tax totals,
+immutable shared deals opened without authentication, WhatsApp links, and
+visible error/recovery states. The `e2e-report` artifact includes the HTML
+report, a mobile EV screenshot, and traces/screenshots for failures.
+
+To reproduce against a dedicated local test database, migrate that database,
+start the fixture API from the repository root with
+`PYTHONPATH=backend uvicorn e2e.provider_app:app --port 8000`, then build/start
+the frontend with `NEXT_PUBLIC_API_URL=http://localhost:8000`.
+From `frontend`, run `npx playwright install chromium` and `npm run test:e2e`.
+Set `E2E_BASE_URL` and `E2E_API_URL` when using different ports. Keep the fixture
+API confined to test environments; normal local/production startup continues
+to use `app.main:app` and live providers.
+
 ## Calculation model
 
 The canonical customs calculation path is `backend/app/services/personal_import_customs.py`.

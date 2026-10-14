@@ -4,7 +4,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import type { CalculatorResult, CarListing, DealRating, MarketComparisonStatus } from "@/lib/types";
+import type { CalculatorResult, DealVehicleSnapshot, DealRating, MarketComparisonStatus } from "@/lib/types";
 import {
   AlertTriangle,
   BarChart3,
@@ -87,7 +87,7 @@ function fmtMonth(value: string) {
 
 interface Props {
   result: CalculatorResult;
-  vehicle?: CarListing | null;
+  vehicle?: DealVehicleSnapshot | null;
 }
 
 const ratingClass: Record<DealRating, string> = {
@@ -115,13 +115,15 @@ export function CalculatorResults({ result, vehicle }: Props) {
   const hasSavings = result.savings_vs_rf_rub != null;
   const isProfit = hasSavings && result.savings_vs_rf_rub! > 0;
   const isAggregate = result.customs_payment_kind === "AGGREGATE_PAYMENT";
-  const vehicleLabel = vehicle ? `${vehicle.make} ${vehicle.model} ${vehicle.year}` : t("ctaGenericVehicle");
+  const vehicleLabel = vehicle?.make || vehicle?.model
+    ? [vehicle.make, vehicle.model, vehicle.year].filter(Boolean).join(" ")
+    : t("ctaGenericVehicle");
   const leadMessage = t("ctaMessage", {
     vehicle: vehicleLabel,
     total: fmt(result.total_cost_rub),
     score: deal?.score ?? "—",
-    sourceUrl: vehicle?.url ?? "—",
-  });
+    sourceUrl: vehicle?.source_url ?? "—",
+  }) + (vehicle?.vin ? ` VIN: ${vehicle.vin}.` : "");
   const contactUrl = buildContactUrl(leadMessage);
   const powerBasisLabel = result.power_basis === "MAX_30_MINUTE_ELECTRIC_POWER_KW"
     ? t("powerBasis30Minute")
