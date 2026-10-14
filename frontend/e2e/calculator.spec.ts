@@ -23,6 +23,12 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(layout.scrollWidth, JSON.stringify(layout)).toBeLessThanOrEqual(layout.width);
 }
 
+async function screenshot(page: Page) {
+  await expect(page.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: 10000 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  return page.screenshot({ fullPage: true });
+}
+
 async function load(page: Page, source: string) {
   await myauto(page).fill(source);
   const response = page.waitForResponse((r) => r.url().endsWith("/cars/from-url") && r.request().method() === "POST");
@@ -123,9 +129,9 @@ for (const scenario of [
     const saved: DealShareOut = await snapshot.json();
     expect(saved.snapshot.result).toEqual(result);
     if (scenario.kind === "EV") {
-      await testInfo.attach("desktop-ev-result", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+      await testInfo.attach("desktop-ev-result", { body: await screenshot(page), contentType: "image/png" });
       await publicPage.setViewportSize({ width: 390, height: 844 });
-      await testInfo.attach("mobile-shared-deal", { body: await publicPage.screenshot({ fullPage: true }), contentType: "image/png" });
+      await testInfo.attach("mobile-shared-deal", { body: await screenshot(publicPage), contentType: "image/png" });
       await expectNoHorizontalOverflow(publicPage);
     }
     expect(publicErrors).toEqual([]);
@@ -180,7 +186,7 @@ test("EV VIN requires regulatory power and produces a readable mobile result", a
   const result = await calculate(page);
   expect(result.power_basis).toBe("MAX_30_MINUTE_ELECTRIC_POWER_KW");
   expect(result.power_kw_used).toBe(153);
-  await testInfo.attach("mobile-ev-result", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+  await testInfo.attach("mobile-ev-result", { body: await screenshot(page), contentType: "image/png" });
   await expectNoHorizontalOverflow(page);
   await page.setViewportSize({ width: 320, height: 740 });
   await expectNoHorizontalOverflow(page);

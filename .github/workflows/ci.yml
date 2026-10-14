@@ -104,7 +104,10 @@ jobs:
         working-directory: frontend
       - name: Start frontend
         working-directory: frontend
-        run: npm run start -- --hostname 127.0.0.1 > ../frontend-e2e.log 2>&1 &
+        run: |
+          cp -R public .next/standalone/public
+          cp -R .next/static .next/standalone/.next/static
+          HOSTNAME=127.0.0.1 PORT=3000 node .next/standalone/server.js > ../frontend-e2e.log 2>&1 &
       - name: Wait for API and frontend
         run: |
           curl --fail --retry 30 --retry-delay 2 --retry-connrefused http://localhost:8000/health
