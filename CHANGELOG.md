@@ -24,7 +24,7 @@ All notable changes to this project will be documented in this file.
 - MileON lead-generation CTA with prefilled vehicle/calculation context.
 - Configurable `NEXT_PUBLIC_MILEON_CONTACT_URL` for production lead routing.
 - Deal Score formula and API documentation.
-- Official Auto.ru Business Appraisal.API provider for automatic Russia-market comparison.
+- Official Auto.ru Business Appraisal.API provider for automatic Russia-market comparison (superseded by the Drom provider below).
 - Russia-market comparison metadata: sample size, market boundaries, mileage-adjusted average, middle-band midpoint, source and check time.
 - Explicit market-provider statuses so market-data failures never block customs calculations.
 - Market-provider regression tests based on the documented Auto.ru Business appraisal response.
@@ -34,6 +34,11 @@ All notable changes to this project will be documented in this file.
 - VIN decoder regression tests and provider documentation.
 - GitHub Actions CI for backend, frontend and PowerShell syntax.
 - Frontend typecheck script.
+- Drom Search API market-provider adapter gated behind confirmed authorized access.
+- Drom make/model `firmId`/`modelId` configuration map without public-page scraping.
+- Drom comparable-listing normalization with de-duplication, configurable outlier trimming and statistical min/median/average/max prices.
+- Mileage-window Drom comparison with automatic relaxed retry when the comparable sample is too small.
+- Regression tests for Drom median reference, nested result normalization, duplicate removal and insufficient-data handling.
 
 ### Changed
 - Public calculator no longer requires authentication.
@@ -44,10 +49,13 @@ All notable changes to this project will be documented in this file.
 - Calculator can use either myauto.ge listing data or VIN-decoded make/model as vehicle identity for market comparison.
 - Results display customs processing fee, total customs cost, age-estimation warning, tariff version and exchange-rate source metadata.
 - Russia-market reference price now powers a structured Deal Score while preserving `savings_vs_rf_rub` compatibility.
-- When no manual reference is supplied, the calculator can automatically obtain a Russia-market reference from Auto.ru Business.
-- Manual Russia-market price is now an explicit override over automatic market appraisal.
-- Deal Score results identify whether the reference was manual or supplied by Auto.ru Business.
-- Appraisal.API median is no longer implied: statistical median remains `null`; middle-band midpoint is exposed under its own name.
+- Automatic Russia-market comparison now uses the Drom provider architecture instead of Auto.ru Business for new calculations.
+- Drom market comparison uses the statistical median of the normalized comparable sample as the Deal Score reference price.
+- Drom automatic access remains disabled until authorized API/database access and real `firmId`/`modelId` values are confirmed.
+- Manual Russia-market price remains an explicit override over automatic market appraisal.
+- Deal Score results identify whether the reference was manual, Drom, or a legacy Auto.ru Business snapshot.
+- Legacy Auto.ru market reference enum values remain readable so existing immutable Deal Pages do not break.
+- Appraisal.API median is no longer implied in legacy snapshots: statistical median remains `null`; middle-band midpoint is exposed under its own name.
 - Pure EVs no longer pass through the ICE EUR/cc unified-rate formula.
 - Corrected 2026 low-power recycling coefficients for 3001–3500 cc and >3500 cc personal imports.
 - Exchange rates no longer silently fall back to hard-coded RUB values.
@@ -59,8 +67,7 @@ All notable changes to this project will be documented in this file.
 - Obsolete `backend/app/services/recycling.py` legacy calculation path.
 
 ### Planned
-- Shareable public Deal Page with vehicle, calculation, Deal Score and MileON CTA.
 - Expand curated/learned vehicle specification coverage.
-- Improve comparable matching with richer generation/body/engine attributes.
+- Improve comparable matching with richer generation/body/engine attributes when the authorized market provider exposes them.
 - Persist market-comparison snapshots in authenticated history.
 - Production observability, external backups and automated deployment.
