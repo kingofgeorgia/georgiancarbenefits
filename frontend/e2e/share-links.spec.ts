@@ -1,4 +1,26 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
+
+async function expectLinkTextFits(link: Locator) {
+  const layout = await link.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const text = Array.from(element.childNodes)
+      .filter((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim())
+      .map((node) => {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const rect = range.getBoundingClientRect();
+        return { top: rect.top - box.top, bottom: rect.bottom - box.top, left: rect.left - box.left, right: rect.right - box.left };
+      });
+    return { width: box.width, height: box.height, text };
+  });
+  expect(layout.text.length).toBeGreaterThan(0);
+  for (const rect of layout.text) {
+    expect(rect.top).toBeGreaterThanOrEqual(-1);
+    expect(rect.bottom).toBeLessThanOrEqual(layout.height + 1);
+    expect(rect.left).toBeGreaterThanOrEqual(-1);
+    expect(rect.right).toBeLessThanOrEqual(layout.width + 1);
+  }
+}
 
 const locales = [
   { locale: "ru", calculate: "Рассчитать", share: "Поделиться расчётом", total: "Итого к оплате", order: "Заказать этот автомобиль через MileON" },
@@ -44,6 +66,7 @@ for (const copy of locales) {
     await expect(page.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: 10000 });
     await expect(link).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await expectLinkTextFits(page.locator('a[href^="https://wa.me/"]'));
     if (copy.locale === "ru") {
       await testInfo.attach("share-link-clipboard-fallback", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
     }
@@ -52,6 +75,7 @@ for (const copy of locales) {
     const publicPage = await opened;
     await expect(publicPage).toHaveURL(url);
     await expect(publicPage.getByText(copy.total, { exact: true })).toBeVisible();
+    await expectLinkTextFits(publicPage.getByRole("link", { name: copy.order, exact: true }));
     const href = await publicPage.getByRole("link", { name: copy.order, exact: true }).getAttribute("href");
     expect(new URL(href!).searchParams.get("text")).toContain(url);
     const next = locales.find((candidate) => candidate.locale === (copy.locale === "en" ? "ru" : "en"))!;

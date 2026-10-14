@@ -314,7 +314,7 @@ export function CalculatorResults({ result, vehicle }: Props) {
                 href={contactUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 text-base font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-md sm:w-auto"
+                className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-base font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-md sm:w-auto"
               >
                 <MessageCircle className="h-5 w-5" />
                 {t("ctaButton")}
