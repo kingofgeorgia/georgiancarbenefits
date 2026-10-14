@@ -147,14 +147,27 @@ export function CalculatorResults({ result, vehicle }: Props) {
                   {market.similar_count != null && <Row label={t("marketSimilarCount")} value={String(market.similar_count)} />}
                   {market.average_mileage_km != null && <Row label={t("marketAverageMileage")} value={fmtKm(market.average_mileage_km)} />}
                   {market.min_price_rub != null && <Row label={t("marketMinPrice")} value={fmt(market.min_price_rub)} />}
+                  {market.median_price_rub != null && <Row label={t("marketMedianPrice")} value={fmt(market.median_price_rub)} />}
                   {market.average_price_rub != null && <Row label={t("marketAveragePrice")} value={fmt(market.average_price_rub)} />}
                   {market.market_midpoint_rub != null && <Row label={t("marketMidpointPrice")} value={fmt(market.market_midpoint_rub)} />}
                   {market.max_price_rub != null && <Row label={t("marketMaxPrice")} value={fmt(market.max_price_rub)} />}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {market.is_mileage_adjusted ? t("marketMileageAdjusted") : t("marketMileageNotAdjusted")}
-                </p>
-                <p className="text-xs text-muted-foreground">{t("marketMedianUnavailable")}</p>
+
+                {market.reference_kind === "MEDIAN_LISTING_PRICE" ? (
+                  <p className="text-xs text-muted-foreground">
+                    {market.is_mileage_adjusted ? t("marketDromMileageFiltered") : t("marketDromMedianReference")}
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      {market.is_mileage_adjusted ? t("marketMileageAdjusted") : t("marketMileageNotAdjusted")}
+                    </p>
+                    {market.median_price_rub == null && (
+                      <p className="text-xs text-muted-foreground">{t("marketMedianUnavailable")}</p>
+                    )}
+                  </>
+                )}
+
                 {market.removed_params.length > 0 && (
                   <div className="flex gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
                     <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -203,7 +216,13 @@ export function CalculatorResults({ result, vehicle }: Props) {
               {result.deal_reference_source && (
                 <Row
                   label={t("dealReferenceSource")}
-                  value={result.deal_reference_source === "MANUAL" ? t("dealReferenceManual") : t("dealReferenceAuto")}
+                  value={
+                    result.deal_reference_source === "MANUAL"
+                      ? t("dealReferenceManual")
+                      : result.deal_reference_source === "DROM"
+                        ? t("dealReferenceDrom")
+                        : t("dealReferenceAuto")
+                  }
                 />
               )}
             </div>
