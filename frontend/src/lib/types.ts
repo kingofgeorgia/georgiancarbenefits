@@ -30,7 +30,10 @@ export type MarketComparisonStatus =
   | "INSUFFICIENT_DATA"
   | "AUTH_ERROR"
   | "PROVIDER_ERROR";
-export type MarketReferenceKind = "MILEAGE_ADJUSTED_AVERAGE" | "MIDDLE_BAND_MIDPOINT";
+export type MarketReferenceKind =
+  | "MILEAGE_ADJUSTED_AVERAGE"
+  | "MIDDLE_BAND_MIDPOINT"
+  | "MEDIAN_LISTING_PRICE";
 export type VinDecodeStatus = "COMPLETE" | "PARTIAL" | "NOT_FOUND" | "PROVIDER_ERROR";
 
 export interface VinDecodeResult {

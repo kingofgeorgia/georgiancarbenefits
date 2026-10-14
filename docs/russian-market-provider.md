@@ -1,96 +1,121 @@
 # Russian Market Comparable Provider
 
-MileON Import Calculator can automatically compare the calculated landed cost of a vehicle with comparable vehicles offered in Russia.
+MileON Import Calculator can compare the calculated landed cost of a vehicle with comparable vehicles offered in Russia.
 
-The implementation uses the official **Auto.ru Business Appraisal.API** rather than scraping public Auto.ru pages.
+The current provider is built around Drom's documented Search API endpoint:
 
-## Why the official API
-
-Auto.ru's public-site terms restrict automated extraction/collection of site information without written permission. The official Auto.ru Business API provides a supported appraisal workflow designed for market valuation.
-
-Official documentation:
-
-- API overview: https://yandex.ru/support/autoru-business/ru/integrations/api
-- Appraisal API: https://yandex.ru/support/autoru-business/ru/integrations/appraisal-api/servise-methods/get-appraisal
-- Simplified comparable appraisal: https://yandex.ru/support/autoru-business/ru/integrations/appraisal-api/servise-methods/get-rating
-- Appraisal service/catalog reference: https://www.yandex.ru/support/autoru-business/ru/integrations/appraisal-api/service-methods-old
-
-## Activation
-
-The provider is optional. Customs calculation continues to work when market comparison is not configured.
-
-Auto.ru Business documents OAuth 2.0 authorization and instructs integrators to obtain authorization data via `help@business.auto.ru` and implement the appropriate token-acquisition mechanism. This project accepts the resulting valid Bearer token from the deployment environment:
-
-```env
-AUTO_RU_BUSINESS_TOKEN=<secret bearer token>
+```text
+GET https://api.drom.ru/v1.2/bulls/search
 ```
 
-Token acquisition/rotation should be handled by deployment secret management until a dedicated OAuth credential flow is added. Do not commit credentials or a real token to Git.
+The integration does **not** scrape public Drom pages and does not use reverse-engineered application credentials.
 
-Default provider settings:
+## Access policy
+
+Drom publishes Search API documentation, but Drom's rules separately restrict automated extraction/use of the portal database without permission and govern database access through its licence terms.
+
+For that reason the provider is disabled by default:
 
 ```env
-AUTO_RU_BUSINESS_API_URL=https://appraisal.api.cm.expert/v1
-AUTO_RU_BUSINESS_SOURCES=auto_ru
-AUTO_RU_BUSINESS_LIQUIDITY_REGION_ID=1960671
-AUTO_RU_BUSINESS_TIMEOUT_SECONDS=10
-AUTO_RU_MARKET_SIMILAR_THRESHOLD=10
-AUTO_RU_MARKET_CACHE_TTL_SECONDS=3600
+DROM_API_ACCESS_CONFIRMED=false
 ```
 
-`AUTO_RU_BUSINESS_SOURCES=auto_ru` intentionally limits the comparison to Auto.ru listings instead of mixing additional marketplaces.
+Set it to `true` only after Drom has confirmed that the MileON use case may access the API/database automatically and supplied any required integration parameters.
 
-## Request flow
+Official references:
 
-When a calculation has no manual Russia-market override and automatic comparison is enabled:
+- Search API: https://www.drom.ru/commerce/dromsearch/
+- Drom database/portal usage rules: https://www.drom.ru/about/reprint/
+- Drom licence terms: https://www.drom.ru/commerce/license/
 
-1. Resolve the myauto.ge make against `GET /autocatalog/brands`.
-2. Resolve the model against `GET /autocatalog/models`.
-3. Fetch supported Russian regions from `GET /regions`.
-4. Call `GET /appraisal/similar/simple` with:
-   - make/brand ID;
-   - model ID;
-   - model year;
-   - optional mileage;
-   - the Russia region set returned by the provider;
-   - a liquidity region ID required for multi-region comparison;
-   - `sources=auto_ru`;
-   - configurable comparable threshold.
-5. Normalize the response into the stable MileON market-comparison contract.
-6. Use the selected reference price as input to the existing MileON Deal Score.
+Customs calculation remains fully available while Drom market comparison is disabled or unavailable.
 
-A manual `rf_analog_price_rub` always overrides automatic market data and is labeled `MANUAL` in the result.
+## Configuration
+
+Default settings:
+
+```env
+DROM_API_URL=https://api.drom.ru/v1.2
+DROM_API_ACCESS_CONFIRMED=false
+DROM_API_AUTH_QUERY_JSON={}
+DROM_VEHICLE_ID_MAP_JSON={}
+DROM_MARKET_TIMEOUT_SECONDS=10
+DROM_MARKET_PAGES=3
+DROM_MARKET_MIN_SAMPLES=5
+DROM_MARKET_TRIM_FRACTION=0.10
+DROM_MARKET_MILEAGE_WINDOW_PERCENT=0.35
+DROM_MARKET_MILEAGE_WINDOW_MIN_KM=30000
+DROM_MARKET_CACHE_TTL_SECONDS=3600
+```
+
+`DROM_API_AUTH_QUERY_JSON` is reserved only for query parameters explicitly issued/required by Drom for an authorized integration. Never populate it from reverse-engineered mobile/web application secrets.
+
+### Make/model ID mapping
+
+The documented Drom search request uses numeric `firmId` and `modelId`. The public Search API documentation does not provide a documented make/model catalog resolver, so MileON does not scrape Drom to discover those IDs.
+
+Until Drom provides a supported catalog endpoint or a catalog export, authorized IDs are configured explicitly:
+
+```env
+DROM_VEHICLE_ID_MAP_JSON={"Tesla":{"firmId":123,"models":{"Model Y":456,"Model 3":457}}}
+```
+
+or:
+
+```env
+DROM_VEHICLE_ID_MAP_JSON={"Tesla|Model Y":{"firmId":123,"modelId":456}}
+```
+
+The numbers above are examples only. Production must use IDs confirmed for the authorized Drom integration.
+
+## Search flow
+
+When the user enables automatic Russia-market comparison and has not supplied a manual reference price:
+
+1. MileON receives make/model/year and optional mileage from MyAuto or VIN data.
+2. Make/model are resolved through the configured Drom `firmId`/`modelId` map.
+3. MileON searches Drom for the exact model year.
+4. The search excludes damaged cars and listings without documents and requests unsold/current listings.
+5. When mileage is known, MileON narrows the sample around that mileage using a configurable window.
+6. Up to `DROM_MARKET_PAGES` result pages are collected.
+7. Duplicate listing IDs are removed.
+8. Listings without a usable price are ignored.
+9. If enough listings remain, configurable lower/upper price tails are trimmed to reduce the impact of obvious outliers.
+10. MileON calculates minimum, statistical median, arithmetic average, maximum and average mileage.
+11. The statistical **median listing price** becomes the Deal Score reference price.
+
+If the mileage-filtered sample is too small, the provider automatically retries the same make/model/year without the mileage filter. The response records `mileage` in `removed_params`, so the UI can warn that the comparison was widened.
+
+A manual `rf_analog_price_rub` always overrides automatic market data and is labelled `MANUAL`.
 
 ## Reference-price policy
 
-The provider uses the following priority:
-
-1. `correctedAveragePriceMileage` when Auto.ru Business returns a mileage-adjusted average price.
-2. Otherwise, the midpoint of the provider's `middle` price category.
-
-The second value is explicitly called `market_midpoint_rub`; it is **not** presented as a statistical median.
-
-Auto.ru Business Appraisal.API does not expose a statistical median in the documented comparable response, so MileON returns:
+For new Drom comparisons:
 
 ```json
-"median_price_rub": null
+{
+  "reference_kind": "MEDIAN_LISTING_PRICE",
+  "reference_price_rub": 5250000,
+  "median_price_rub": 5250000
+}
 ```
 
-rather than inventing or mislabeling a value.
+The median is preferred for Deal Score because it is less sensitive than a simple average to unusually cheap or expensive listings. MileON still returns the average and market boundaries for transparency.
 
-The documented `low` and `high` values are market price-category boundaries, not claimed to be the literal cheapest and most expensive live listings.
+Legacy `MILEAGE_ADJUSTED_AVERAGE` and `MIDDLE_BAND_MIDPOINT` enum values remain supported so Deal Page snapshots created under the previous Auto.ru Business provider stay readable.
 
 ## Response metadata
 
-Automatic comparison can return:
+An available Drom comparison can return:
 
-- `reference_price_rub` and `reference_kind`;
-- lower and upper market-category boundaries;
-- mileage-adjusted average price when available;
-- midpoint of the middle price band;
-- number of similar listings;
-- average mileage of comparable vehicles;
-- parameters removed by the provider to expand the comparable set;
+- market reference price and reference kind;
+- minimum listing price;
+- statistical median listing price;
+- arithmetic average listing price;
+- maximum listing price;
+- number of usable comparable listings after de-duplication/outlier trimming;
+- average mileage when listings provide mileage;
+- filters removed to expand the sample;
 - source/provider;
 - UTC check timestamp;
 - explicit provider status/reason.
@@ -99,22 +124,32 @@ Automatic comparison can return:
 
 | Status | Meaning |
 |---|---|
-| `AVAILABLE` | A usable automatic market reference was returned. |
-| `NOT_CONFIGURED` | The official API token is not configured. |
-| `MISSING_VEHICLE_DATA` | Make/model is unavailable, normally because no myauto.ge vehicle was loaded. |
-| `VEHICLE_NOT_FOUND` | Make/model could not be resolved in the provider catalog. |
-| `INSUFFICIENT_DATA` | The provider could not build a sufficiently useful comparable set. |
-| `AUTH_ERROR` | The official API rejected authorization. |
-| `PROVIDER_ERROR` | Network/provider response failed for another reason. |
+| `AVAILABLE` | A usable Drom comparable set was returned. |
+| `NOT_CONFIGURED` | Authorized Drom access has not been enabled. |
+| `MISSING_VEHICLE_DATA` | Make/model is unavailable. |
+| `VEHICLE_NOT_FOUND` | No configured Drom `firmId`/`modelId` mapping exists for the vehicle, or the authorized endpoint reports it missing. |
+| `INSUFFICIENT_DATA` | Too few usable listings remain for a reliable comparison. |
+| `AUTH_ERROR` | Drom rejected the authorized request. |
+| `PROVIDER_ERROR` | Network, response-contract or configuration parsing failed. |
 
-Market-data failure never invalidates the customs calculation. It only prevents automatic Deal Score generation unless the user supplies a manual reference price.
+Market-data failure never invalidates the customs calculation. It only prevents automatic Deal Score generation unless the user supplies a manual Russia-market reference price.
 
 ## Caching
 
-Successful market comparisons are cached in-process using make, model, model year and mileage as the cache key. The default TTL is one hour. Failed responses are not cached so temporary provider issues can recover immediately.
+Successful comparisons are cached in-process by make, model, model year and mileage. The default TTL is one hour. Failed responses are not cached so temporary provider/configuration problems can recover immediately.
 
-## Trust and presentation
+This is currently per-process memory caching. A future multi-worker deployment can move this to Redis or another shared cache.
 
-The UI always identifies the market source and check time. It also warns when Auto.ru Business reports that comparison parameters were removed to widen the sample, because that can reduce precision.
+## Production activation checklist
 
-This market appraisal is a decision aid and is not a guaranteed transaction price.
+Before enabling Drom comparison in production:
+
+1. Obtain written/contractual confirmation that this automated API/database use is permitted.
+2. Obtain any required authorized Drom request parameters.
+3. Obtain/confirm the actual `firmId` and `modelId` catalog values, or a supported catalog resolver.
+4. Verify the authorized Search API response schema against the MileON adapter.
+5. Populate server-side environment variables only; do not expose integration credentials to the browser.
+6. Set `DROM_API_ACCESS_CONFIRMED=true` only after the previous steps pass.
+7. Test several high-volume and low-volume models before relying on Deal Score in production.
+
+The market comparison is a decision aid, not a guaranteed transaction price.
