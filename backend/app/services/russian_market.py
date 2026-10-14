@@ -1,5 +1,7 @@
 import asyncio
+import json
 import re
+import statistics
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -22,8 +24,10 @@ class MarketComparisonStatus(StrEnum):
 
 
 class MarketReferenceKind(StrEnum):
+    # Legacy values are retained so old immutable Deal Page snapshots remain readable.
     MILEAGE_ADJUSTED_AVERAGE = "MILEAGE_ADJUSTED_AVERAGE"
     MIDDLE_BAND_MIDPOINT = "MIDDLE_BAND_MIDPOINT"
+    MEDIAN_LISTING_PRICE = "MEDIAN_LISTING_PRICE"
 
 
 @dataclass(frozen=True)
@@ -51,12 +55,18 @@ class MarketComparison:
     reason: str | None = None
 
 
+@dataclass(frozen=True)
+class DromVehicleIds:
+    firm_id: int
+    model_id: int
+
+
 class MarketProviderError(RuntimeError):
     pass
 
 
-_PROVIDER_NAME = "Auto.ru Business Appraisal.API"
-_SOURCE_NAME = "auto.ru"
+_PROVIDER_NAME = "Drom Search API"
+_SOURCE_NAME = "drom.ru"
 _cache: dict[tuple[str, str, int, int | None], tuple[float, MarketComparison]] = {}
 _cache_lock = asyncio.Lock()
 
@@ -65,109 +75,228 @@ def _normalize_name(value: str) -> str:
     return re.sub(r"[\W_]+", "", value.casefold(), flags=re.UNICODE)
 
 
-def _find_entity_id(items: list[dict[str, Any]], name: str) -> int | None:
-    wanted = _normalize_name(name)
-    for item in items:
-        text = item.get("text")
-        entity_id = item.get("id")
-        if isinstance(text, str) and isinstance(entity_id, int) and _normalize_name(text) == wanted:
-            return entity_id
+def _safe_float(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        number = float(value)
+        return number if number > 0 else None
+    if isinstance(value, str):
+        cleaned = value.strip().replace("\u00a0", " ").replace(" ", "").replace(",", ".")
+        cleaned = re.sub(r"[^0-9.\-]", "", cleaned)
+        try:
+            number = float(cleaned)
+        except ValueError:
+            return None
+        return number if number > 0 else None
+    if isinstance(value, dict):
+        for key in ("value", "amount", "rub", "price"):
+            if key in value:
+                parsed = _safe_float(value[key])
+                if parsed is not None:
+                    return parsed
     return None
 
 
-def _safe_price(value: Any) -> float | None:
-    if isinstance(value, (int, float)) and value > 0:
-        return round(float(value), 2)
+def _value_from_keys(row: dict[str, Any], *keys: str) -> float | None:
+    for key in keys:
+        if key in row:
+            value = _safe_float(row[key])
+            if value is not None:
+                return value
     return None
 
 
-def parse_appraisal_response(
-    payload: dict[str, Any],
+def _is_ruble_listing(row: dict[str, Any]) -> bool:
+    currency = row.get("currency")
+    if currency is None:
+        return True
+    if isinstance(currency, (int, float)):
+        # Drom documents currency as an integer ID but does not publish the ID
+        # mapping on the public Search API page. Authorized integrations can
+        # therefore rely on the account/API contract for numeric currency IDs.
+        return True
+    if isinstance(currency, str):
+        normalized = currency.strip().casefold().replace(".", "")
+        return normalized in {"rub", "rur", "руб", "₽", "russian ruble"}
+    return False
+
+
+def _extract_drom_items(payload: Any) -> list[dict[str, Any]]:
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+
+    if not isinstance(payload, dict):
+        raise MarketProviderError("Drom returned an unsupported response type")
+
+    if any(key in payload for key in ("price", "priceRub", "priceRur", "price_rub")):
+        return [payload]
+
+    for key in ("items", "bulls", "results", "list", "data"):
+        if key not in payload:
+            continue
+        nested = payload[key]
+        if isinstance(nested, list):
+            return [item for item in nested if isinstance(item, dict)]
+        if isinstance(nested, dict):
+            return _extract_drom_items(nested)
+
+    # An explicitly empty object is treated as an empty result set. A non-empty
+    # unknown object is an API-contract mismatch and should not silently become
+    # "no comparable cars".
+    if not payload:
+        return []
+    raise MarketProviderError("Drom response shape is not recognized")
+
+
+def _parse_json_object(raw: str, *, setting_name: str) -> dict[str, Any]:
+    try:
+        value = json.loads(raw or "{}")
+    except json.JSONDecodeError as exc:
+        raise MarketProviderError(f"{setting_name} is not valid JSON") from exc
+    if not isinstance(value, dict):
+        raise MarketProviderError(f"{setting_name} must contain a JSON object")
+    return value
+
+
+def _parse_vehicle_id_map(raw: str) -> dict[tuple[str, str], DromVehicleIds]:
+    data = _parse_json_object(raw, setting_name="DROM_VEHICLE_ID_MAP_JSON")
+    result: dict[tuple[str, str], DromVehicleIds] = {}
+
+    for key, value in data.items():
+        if not isinstance(value, dict):
+            continue
+
+        firm_id = value.get("firmId")
+        model_id = value.get("modelId")
+        if isinstance(firm_id, int) and isinstance(model_id, int) and "|" in key:
+            make, model = key.split("|", 1)
+            result[(_normalize_name(make), _normalize_name(model))] = DromVehicleIds(
+                firm_id=firm_id,
+                model_id=model_id,
+            )
+            continue
+
+        models = value.get("models")
+        if not isinstance(firm_id, int) or not isinstance(models, dict):
+            continue
+        for model_name, nested_model_id in models.items():
+            if isinstance(model_name, str) and isinstance(nested_model_id, int):
+                result[(_normalize_name(key), _normalize_name(model_name))] = DromVehicleIds(
+                    firm_id=firm_id,
+                    model_id=nested_model_id,
+                )
+
+    return result
+
+
+def _parse_auth_query(raw: str) -> dict[str, str | int | float | bool]:
+    data = _parse_json_object(raw, setting_name="DROM_API_AUTH_QUERY_JSON")
+    result: dict[str, str | int | float | bool] = {}
+    for key, value in data.items():
+        if isinstance(key, str) and isinstance(value, (str, int, float, bool)):
+            result[key] = value
+    return result
+
+
+def _trim_price_outliers(
+    rows: list[tuple[float, float | None]],
+    *,
+    trim_fraction: float,
+    min_samples: int,
+) -> list[tuple[float, float | None]]:
+    ordered = sorted(rows, key=lambda row: row[0])
+    if len(ordered) < max(min_samples + 2, 8) or trim_fraction <= 0:
+        return ordered
+
+    cut = max(1, int(len(ordered) * trim_fraction))
+    if len(ordered) - (cut * 2) < min_samples:
+        return ordered
+    return ordered[cut:-cut]
+
+
+def parse_drom_search_response(
+    payloads: list[Any],
     *,
     make: str,
     model: str,
     year: int,
     mileage_km: int | None,
+    min_samples: int,
+    trim_fraction: float,
+    mileage_filter_applied: bool,
+    removed_params: tuple[str, ...] = (),
     checked_at: datetime | None = None,
 ) -> MarketComparison:
-    """Normalize the official Auto.ru Business appraisal response.
-
-    Appraisal.API does not expose a statistical median. We intentionally keep
-    `median_price_rub=None` instead of fabricating one. `market_midpoint_rub`
-    is the midpoint of the provider's middle price band and is named as such.
-    """
     checked_at = checked_at or datetime.now(timezone.utc)
-    corrected_average = _safe_price(payload.get("correctedAveragePriceMileage"))
-    corrected_categories = payload.get("correctedPriceCategories")
-    raw_categories = payload.get("priceCategories")
+    raw_items: list[dict[str, Any]] = []
+    for payload in payloads:
+        raw_items.extend(_extract_drom_items(payload))
 
-    categories = corrected_categories if corrected_average and isinstance(corrected_categories, dict) else raw_categories
-    if not isinstance(categories, dict):
-        categories = {}
+    samples: list[tuple[float, float | None]] = []
+    seen_ids: set[str] = set()
+    for item in raw_items:
+        item_id = item.get("id") or item.get("bullId") or item.get("bull_id")
+        if item_id is not None:
+            marker = str(item_id)
+            if marker in seen_ids:
+                continue
+            seen_ids.add(marker)
 
-    low = categories.get("low") if isinstance(categories.get("low"), dict) else {}
-    middle = categories.get("middle") if isinstance(categories.get("middle"), dict) else {}
-    high = categories.get("high") if isinstance(categories.get("high"), dict) else {}
+        if not _is_ruble_listing(item):
+            continue
+        price = _value_from_keys(item, "priceRub", "priceRur", "price_rub", "price")
+        if price is None:
+            continue
+        mileage = _value_from_keys(item, "mileageKm", "mileage_km", "mileage")
+        samples.append((price, mileage))
 
-    min_price = _safe_price(low.get("min"))
-    middle_min = _safe_price(middle.get("min"))
-    middle_max = _safe_price(middle.get("max"))
-    max_price = _safe_price(high.get("max"))
-    midpoint = None
-    if middle_min is not None and middle_max is not None:
-        midpoint = round((middle_min + middle_max) / 2, 2)
-
-    if corrected_average is not None:
-        reference = corrected_average
-        reference_kind = MarketReferenceKind.MILEAGE_ADJUSTED_AVERAGE
-    else:
-        reference = midpoint
-        reference_kind = MarketReferenceKind.MIDDLE_BAND_MIDPOINT if midpoint is not None else None
-
-    similar_count = payload.get("similarCars")
-    if not isinstance(similar_count, int):
-        similar_count = None
-
-    average_mileage = payload.get("similarCarsAvgMileage")
-    if not isinstance(average_mileage, (int, float)):
-        average_mileage = None
-
-    removed_params = payload.get("removedParams")
-    if not isinstance(removed_params, list):
-        removed_params = []
-
-    if reference is None:
+    if len(samples) < min_samples:
         return MarketComparison(
             status=MarketComparisonStatus.INSUFFICIENT_DATA,
             provider=_PROVIDER_NAME,
             source=_SOURCE_NAME,
             checked_at=checked_at,
-            scope="RU_ALL_REGIONS",
+            scope="RU_DROM_LISTINGS",
             make=make,
             model=model,
             year=year,
             mileage_km=mileage_km,
-            similar_count=similar_count,
-            reason="Provider returned no usable market price",
+            similar_count=len(samples),
+            removed_params=removed_params,
+            is_mileage_adjusted=mileage_filter_applied,
+            reason=f"Only {len(samples)} usable Drom listings were returned; at least {min_samples} are required",
         )
+
+    filtered = _trim_price_outliers(
+        samples,
+        trim_fraction=max(0.0, min(trim_fraction, 0.40)),
+        min_samples=min_samples,
+    )
+    prices = [row[0] for row in filtered]
+    mileages = [row[1] for row in filtered if row[1] is not None]
+
+    median_price = round(float(statistics.median(prices)), 2)
+    average_price = round(float(statistics.fmean(prices)), 2)
+    average_mileage = round(float(statistics.fmean(mileages)), 2) if mileages else None
 
     return MarketComparison(
         status=MarketComparisonStatus.AVAILABLE,
         provider=_PROVIDER_NAME,
         source=_SOURCE_NAME,
         checked_at=checked_at,
-        scope="RU_ALL_REGIONS",
-        reference_price_rub=reference,
-        reference_kind=reference_kind,
-        min_price_rub=min_price,
-        median_price_rub=None,
-        average_price_rub=corrected_average,
-        market_midpoint_rub=midpoint,
-        max_price_rub=max_price,
-        similar_count=similar_count,
-        average_mileage_km=round(float(average_mileage), 2) if average_mileage is not None else None,
-        removed_params=tuple(str(value) for value in removed_params),
-        is_mileage_adjusted=corrected_average is not None,
+        scope="RU_DROM_LISTINGS",
+        reference_price_rub=median_price,
+        reference_kind=MarketReferenceKind.MEDIAN_LISTING_PRICE,
+        min_price_rub=round(min(prices), 2),
+        median_price_rub=median_price,
+        average_price_rub=average_price,
+        market_midpoint_rub=None,
+        max_price_rub=round(max(prices), 2),
+        similar_count=len(filtered),
+        average_mileage_km=average_mileage,
+        removed_params=removed_params,
+        is_mileage_adjusted=mileage_filter_applied,
         make=make,
         model=model,
         year=year,
@@ -175,76 +304,79 @@ def parse_appraisal_response(
     )
 
 
-class AutoRuBusinessMarketProvider:
+class DromMarketProvider:
     def __init__(self) -> None:
-        self.base_url = settings.auto_ru_business_api_url.rstrip("/")
-        self.token = settings.auto_ru_business_token
-        self.similar_threshold = settings.auto_ru_market_similar_threshold
-        self.liquidity_region_id = settings.auto_ru_business_liquidity_region_id
-        self.sources = tuple(
-            part.strip() for part in settings.auto_ru_business_sources.split(",") if part.strip()
-        ) or ("auto_ru",)
+        self.base_url = settings.drom_api_url.rstrip("/")
+        self.access_confirmed = settings.drom_api_access_confirmed
+        self.timeout_seconds = settings.drom_market_timeout_seconds
+        self.pages = max(1, min(settings.drom_market_pages, 10))
+        self.min_samples = max(3, settings.drom_market_min_samples)
+        self.trim_fraction = max(0.0, min(settings.drom_market_trim_fraction, 0.40))
+        self.mileage_window_percent = max(0.0, settings.drom_market_mileage_window_percent)
+        self.mileage_window_min_km = max(0, settings.drom_market_mileage_window_min_km)
+        self.vehicle_ids = _parse_vehicle_id_map(settings.drom_vehicle_id_map_json)
+        self.auth_query = _parse_auth_query(settings.drom_api_auth_query_json)
 
     @property
     def configured(self) -> bool:
-        return bool(self.token)
+        return self.access_confirmed
 
-    def _headers(self) -> dict[str, str]:
-        return {
-            "Accept": "application/json",
-            "Authorization": f"Bearer {self.token}",
-            "User-Agent": "MileON Import Calculator (market-comparison)",
-        }
+    def _resolve_vehicle(self, make: str, model: str) -> DromVehicleIds | None:
+        return self.vehicle_ids.get((_normalize_name(make), _normalize_name(model)))
 
-    async def _get_json(
-        self,
-        client: httpx.AsyncClient,
-        path: str,
-        *,
-        params: list[tuple[str, str | int]] | dict[str, str | int] | None = None,
-    ) -> Any:
-        response = await client.get(f"{self.base_url}{path}", params=params, headers=self._headers())
+    async def _get_json(self, client: httpx.AsyncClient, params: dict[str, Any]) -> Any:
+        query = {**params, **self.auth_query}
+        response = await client.get(
+            f"{self.base_url}/bulls/search",
+            params=query,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "MileON Import Calculator (authorized Drom market comparison)",
+            },
+        )
         if response.status_code in {401, 403}:
-            raise PermissionError("Auto.ru Business API authorization failed")
-        if response.status_code == 422:
-            raise LookupError("Auto.ru Business API has insufficient market data")
+            raise PermissionError("Drom API authorization failed")
+        if response.status_code == 404:
+            raise LookupError("Drom search endpoint or vehicle was not found")
         response.raise_for_status()
         return response.json()
 
-    async def _resolve_brand_model(
+    def _base_params(self, ids: DromVehicleIds, year: int) -> dict[str, Any]:
+        return {
+            "firmId": ids.firm_id,
+            "modelId": ids.model_id,
+            "minYear": year,
+            "maxYear": year,
+            "isDamaged": "false",
+            "withoutDocuments": "false",
+            "unsold": "true",
+        }
+
+    def _mileage_bounds(self, mileage_km: int) -> tuple[int, int]:
+        radius = max(
+            self.mileage_window_min_km,
+            int(round(mileage_km * self.mileage_window_percent)),
+        )
+        return max(0, mileage_km - radius), mileage_km + radius
+
+    async def _search_pages(
         self,
         client: httpx.AsyncClient,
         *,
-        make: str,
-        model: str,
-    ) -> tuple[int, int] | None:
-        brands_payload = await self._get_json(client, "/autocatalog/brands")
-        brands = brands_payload.get("brands", []) if isinstance(brands_payload, dict) else []
-        if not isinstance(brands, list):
-            return None
-        brand_id = _find_entity_id(brands, make)
-        if brand_id is None:
-            return None
+        ids: DromVehicleIds,
+        year: int,
+        mileage_km: int | None,
+    ) -> list[Any]:
+        base = self._base_params(ids, year)
+        if mileage_km is not None:
+            min_mileage, max_mileage = self._mileage_bounds(mileage_km)
+            base["minMileageKm"] = min_mileage
+            base["maxMileageKm"] = max_mileage
 
-        models_payload = await self._get_json(
-            client,
-            "/autocatalog/models",
-            params={"brand": brand_id},
-        )
-        models = models_payload.get("models", []) if isinstance(models_payload, dict) else []
-        if not isinstance(models, list):
-            return None
-        model_id = _find_entity_id(models, model)
-        if model_id is None:
-            return None
-        return brand_id, model_id
-
-    async def _all_region_ids(self, client: httpx.AsyncClient) -> list[int]:
-        payload = await self._get_json(client, "/regions")
-        if not isinstance(payload, list):
-            return []
-        ids = [row.get("regionId") for row in payload if isinstance(row, dict)]
-        return [value for value in ids if isinstance(value, int)]
+        payloads: list[Any] = []
+        for page in range(1, self.pages + 1):
+            payloads.append(await self._get_json(client, {**base, "page": page}))
+        return payloads
 
     async def compare(
         self,
@@ -261,66 +393,80 @@ class AutoRuBusinessMarketProvider:
                 provider=_PROVIDER_NAME,
                 source=_SOURCE_NAME,
                 checked_at=checked_at,
-                scope="RU_ALL_REGIONS",
+                scope="RU_DROM_LISTINGS",
                 make=make,
                 model=model,
                 year=year,
                 mileage_km=mileage_km,
-                reason="AUTO_RU_BUSINESS_TOKEN is not configured",
+                reason=(
+                    "Drom automatic access is disabled until authorized API/database access is confirmed. "
+                    "Set DROM_API_ACCESS_CONFIRMED=true only after Drom permission is obtained."
+                ),
             )
 
-        timeout = httpx.Timeout(settings.auto_ru_business_timeout_seconds)
+        ids = self._resolve_vehicle(make, model)
+        if ids is None:
+            return MarketComparison(
+                status=MarketComparisonStatus.VEHICLE_NOT_FOUND,
+                provider=_PROVIDER_NAME,
+                source=_SOURCE_NAME,
+                checked_at=checked_at,
+                scope="RU_DROM_LISTINGS",
+                make=make,
+                model=model,
+                year=year,
+                mileage_km=mileage_km,
+                reason="Drom firmId/modelId mapping is not configured for this make/model",
+            )
+
+        timeout = httpx.Timeout(self.timeout_seconds)
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
-                ids = await self._resolve_brand_model(client, make=make, model=model)
-                if ids is None:
-                    return MarketComparison(
-                        status=MarketComparisonStatus.VEHICLE_NOT_FOUND,
-                        provider=_PROVIDER_NAME,
-                        source=_SOURCE_NAME,
-                        checked_at=checked_at,
-                        scope="RU_ALL_REGIONS",
-                        make=make,
-                        model=model,
-                        year=year,
-                        mileage_km=mileage_km,
-                        reason="Make/model was not found in Auto.ru Business catalog",
-                    )
-                brand_id, model_id = ids
-                region_ids = await self._all_region_ids(client)
-                if not region_ids:
-                    raise MarketProviderError("Auto.ru Business regions catalog is empty")
-
-                params: list[tuple[str, str | int]] = [
-                    ("brand", brand_id),
-                    ("model", model_id),
-                    ("creationYear", year),
-                    ("liquidityRegionId", self.liquidity_region_id),
-                    ("similarThreshold", self.similar_threshold),
-                ]
-                if mileage_km is not None:
-                    params.append(("mileage", mileage_km))
-                params.extend(("regionId", region_id) for region_id in region_ids)
-                params.extend(("sources", source) for source in self.sources)
-
-                payload = await self._get_json(client, "/appraisal/similar/simple", params=params)
-                if not isinstance(payload, dict):
-                    raise MarketProviderError("Auto.ru Business returned a non-object response")
-                return parse_appraisal_response(
-                    payload,
+                payloads = await self._search_pages(
+                    client,
+                    ids=ids,
+                    year=year,
+                    mileage_km=mileage_km,
+                )
+                result = parse_drom_search_response(
+                    payloads,
                     make=make,
                     model=model,
                     year=year,
                     mileage_km=mileage_km,
+                    min_samples=self.min_samples,
+                    trim_fraction=self.trim_fraction,
+                    mileage_filter_applied=mileage_km is not None,
                     checked_at=checked_at,
                 )
+
+                if result.status == MarketComparisonStatus.INSUFFICIENT_DATA and mileage_km is not None:
+                    relaxed_payloads = await self._search_pages(
+                        client,
+                        ids=ids,
+                        year=year,
+                        mileage_km=None,
+                    )
+                    result = parse_drom_search_response(
+                        relaxed_payloads,
+                        make=make,
+                        model=model,
+                        year=year,
+                        mileage_km=mileage_km,
+                        min_samples=self.min_samples,
+                        trim_fraction=self.trim_fraction,
+                        mileage_filter_applied=False,
+                        removed_params=("mileage",),
+                        checked_at=checked_at,
+                    )
+                return result
         except PermissionError as exc:
             return MarketComparison(
                 status=MarketComparisonStatus.AUTH_ERROR,
                 provider=_PROVIDER_NAME,
                 source=_SOURCE_NAME,
                 checked_at=checked_at,
-                scope="RU_ALL_REGIONS",
+                scope="RU_DROM_LISTINGS",
                 make=make,
                 model=model,
                 year=year,
@@ -329,24 +475,24 @@ class AutoRuBusinessMarketProvider:
             )
         except LookupError as exc:
             return MarketComparison(
-                status=MarketComparisonStatus.INSUFFICIENT_DATA,
+                status=MarketComparisonStatus.VEHICLE_NOT_FOUND,
                 provider=_PROVIDER_NAME,
                 source=_SOURCE_NAME,
                 checked_at=checked_at,
-                scope="RU_ALL_REGIONS",
+                scope="RU_DROM_LISTINGS",
                 make=make,
                 model=model,
                 year=year,
                 mileage_km=mileage_km,
                 reason=str(exc),
             )
-        except (httpx.HTTPError, ValueError, MarketProviderError) as exc:
+        except (httpx.HTTPError, ValueError, MarketProviderError, json.JSONDecodeError) as exc:
             return MarketComparison(
                 status=MarketComparisonStatus.PROVIDER_ERROR,
                 provider=_PROVIDER_NAME,
                 source=_SOURCE_NAME,
                 checked_at=checked_at,
-                scope="RU_ALL_REGIONS",
+                scope="RU_DROM_LISTINGS",
                 make=make,
                 model=model,
                 year=year,
@@ -369,7 +515,7 @@ async def get_market_comparison(
             provider=_PROVIDER_NAME,
             source=_SOURCE_NAME,
             checked_at=now,
-            scope="RU_ALL_REGIONS",
+            scope="RU_DROM_LISTINGS",
             make=make,
             model=model,
             year=year,
@@ -384,7 +530,7 @@ async def get_market_comparison(
         if cached and cached[0] > monotonic_now:
             return cached[1]
 
-    result = await AutoRuBusinessMarketProvider().compare(
+    result = await DromMarketProvider().compare(
         make=make,
         model=model,
         year=year,
@@ -393,7 +539,7 @@ async def get_market_comparison(
     if result.status == MarketComparisonStatus.AVAILABLE:
         async with _cache_lock:
             _cache[cache_key] = (
-                monotonic_now + settings.auto_ru_market_cache_ttl_seconds,
+                monotonic_now + settings.drom_market_cache_ttl_seconds,
                 result,
             )
     return result
