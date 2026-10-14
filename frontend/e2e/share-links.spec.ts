@@ -73,8 +73,10 @@ for (const copy of locales) {
     const opened = page.waitForEvent("popup");
     await link.click();
     const publicPage = await opened;
+    await publicPage.setViewportSize({ width: 320, height: 740 });
     await expect(publicPage).toHaveURL(url);
     await expect(publicPage.getByText(copy.total, { exact: true })).toBeVisible();
+    expect(await publicPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await expectLinkTextFits(publicPage.getByRole("link", { name: copy.order, exact: true }));
     const href = await publicPage.getByRole("link", { name: copy.order, exact: true }).getAttribute("href");
     expect(new URL(href!).searchParams.get("text")).toContain(url);
