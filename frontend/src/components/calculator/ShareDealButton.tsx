@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useLocale } from "next-intl";
 import { useMutation } from "@tanstack/react-query";
 import { Copy, Share2 } from "lucide-react";
@@ -30,6 +31,7 @@ const copy = {
 export function ShareDealButton({ request, result, vehicle }: Props) {
   const locale = useLocale();
   const text = copy[locale as keyof typeof copy] ?? copy.en;
+  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -42,21 +44,29 @@ export function ShareDealButton({ request, result, vehicle }: Props) {
     },
     onSuccess: async (share) => {
       const url = `${window.location.origin}/${locale}/deal/${share.public_id}`;
+      setFallbackUrl(null);
       try {
         await navigator.clipboard.writeText(url);
         toast.success(text.copied);
       } catch {
+        setFallbackUrl(url);
         toast.success(text.created);
-        window.open(url, "_blank", "noopener,noreferrer");
       }
     },
     onError: () => toast.error(text.error),
   });
 
   return (
-    <Button type="button" variant="outline" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-      {mutation.isPending ? <Copy className="mr-2 h-4 w-4 animate-pulse" /> : <Share2 className="mr-2 h-4 w-4" />}
-      {mutation.isPending ? text.creating : text.button}
-    </Button>
+    <div className="flex min-w-0 max-w-full flex-col items-end gap-2">
+      <Button type="button" variant="outline" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+        {mutation.isPending ? <Copy className="mr-2 h-4 w-4 animate-pulse" /> : <Share2 className="mr-2 h-4 w-4" />}
+        {mutation.isPending ? text.creating : text.button}
+      </Button>
+      {fallbackUrl && (
+        <a href={fallbackUrl} target="_blank" rel="noopener noreferrer" className="max-w-full break-all text-sm text-primary underline underline-offset-4">
+          {fallbackUrl}
+        </a>
+      )}
+    </div>
   );
 }

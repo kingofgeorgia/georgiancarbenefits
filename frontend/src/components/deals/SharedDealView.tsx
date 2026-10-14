@@ -149,7 +149,7 @@ export function SharedDealView({ publicId }: { publicId: string }) {
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
-            <a href={contactUrl(lead)} target="_blank" rel="noopener noreferrer" className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 text-base font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-md sm:w-auto">
+            <a href={contactUrl(lead)} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-base font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-md sm:w-auto">
               <MessageCircle className="h-5 w-5" />{text.order}
             </a>
             {vehicle?.source_url && <a href={vehicle.source_url} target="_blank" rel="noopener noreferrer" className="inline-flex h-12 items-center gap-2 rounded-lg border bg-background px-5 text-sm font-medium"><ExternalLink className="h-4 w-4" />{text.source}</a>}
