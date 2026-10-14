@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Link2, ScanLine, X } from "lucide-react";
+import { AlertTriangle, Link2, RotateCcw, ScanLine, X } from "lucide-react";
 import { api } from "@/lib/api";
 import type { CalculatorRequest, CalculatorResult, CarListing, PowertrainKind, VinDecodeResult } from "@/lib/types";
 import { CalculatorResults } from "./CalculatorResults";
@@ -21,10 +21,36 @@ import { ShareDealButton } from "./ShareDealButton";
 
 const currentYear = new Date().getFullYear();
 
+const uiCopy = {
+  ru: {
+    myAutoLabel: "Ссылка или ID объявления MyAuto",
+    myAutoPlaceholder: "https://www.myauto.ge/.../pr/123673764 или 123673764",
+    myAutoError: "Не удалось загрузить авто. Проверьте ссылку или ID объявления.",
+    marketHint: "Если известны марка и модель, MileON может запросить официальную оценку похожих объявлений в РФ.",
+    reset: "Сбросить расчёт",
+  },
+  en: {
+    myAutoLabel: "MyAuto listing link or ID",
+    myAutoPlaceholder: "https://www.myauto.ge/.../pr/123673764 or 123673764",
+    myAutoError: "Could not load the car. Check the listing link or ID.",
+    marketHint: "When make and model are known, MileON can request an official appraisal of comparable listings in Russia.",
+    reset: "Reset calculation",
+  },
+  ka: {
+    myAutoLabel: "MyAuto განცხადების ბმული ან ID",
+    myAutoPlaceholder: "https://www.myauto.ge/.../pr/123673764 ან 123673764",
+    myAutoError: "ავტომობილის ჩატვირთვა ვერ მოხერხდა. შეამოწმეთ განცხადების ბმული ან ID.",
+    marketHint: "თუ მარკა და მოდელი ცნობილია, MileON-ს შეუძლია მოითხოვოს რუსეთში მსგავსი განცხადებების ოფიციალური შეფასება.",
+    reset: "გამოთვლის გასუფთავება",
+  },
+} as const;
+
 export function Calculator() {
   const t = useTranslations("calculator");
   const tErr = useTranslations("errors");
-  const [carUrl, setCarUrl] = useState("");
+  const locale = useLocale();
+  const copy = uiCopy[locale as keyof typeof uiCopy] ?? uiCopy.en;
+  const [carSource, setCarSource] = useState("");
   const [vin, setVin] = useState("");
   const [loadedCar, setLoadedCar] = useState<CarListing | null>(null);
   const [decodedVin, setDecodedVin] = useState<VinDecodeResult | null>(null);
@@ -68,7 +94,7 @@ export function Calculator() {
   });
 
   type FormData = z.infer<typeof schema>;
-  const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       logistics_cost_rub: 170000,
@@ -77,7 +103,9 @@ export function Calculator() {
       horse_power: null,
       electric_power_kw: null,
       mileage_km: null,
-      auto_market_comparison: true,
+      rf_analog_price_rub: null,
+      auto_market_comparison: false,
+      note: null,
     },
   });
 
@@ -86,7 +114,7 @@ export function Calculator() {
   const usesElectricRegulatoryPower = powertrainKind === "EV" || powertrainKind === "SERIES_HYBRID";
 
   const urlMutation = useMutation({
-    mutationFn: (url: string) => api.post<CarListing>("/cars/from-url", { url }).then((r) => r.data),
+    mutationFn: (source: string) => api.post<CarListing>("/cars/from-url", { url: source }).then((r) => r.data),
     onSuccess: (car) => {
       setLoadedCar(car);
       setValue("car_price_usd", car.price_usd);
@@ -99,7 +127,7 @@ export function Calculator() {
       setValue("powertrain_kind", car.powertrain_kind ?? "ICE");
       toast.success(t("urlLoaded", { make: car.make, model: car.model, year: car.year }));
     },
-    onError: () => toast.error(t("urlLoadError")),
+    onError: () => toast.error(copy.myAutoError),
   });
 
   const vinMutation = useMutation({
@@ -146,6 +174,19 @@ export function Calculator() {
     onError: () => toast.error(tErr("generic")),
   });
 
+  function resetCalculator() {
+    setCarSource("");
+    setVin("");
+    setLoadedCar(null);
+    setDecodedVin(null);
+    lastPayloadRef.current = null;
+    reset();
+    urlMutation.reset();
+    vinMutation.reset();
+    calcMutation.reset();
+    saveMutation.reset();
+  }
+
   function onSubmit(data: FormData) {
     const electricRegulatoryPower = data.powertrain_kind === "EV" || data.powertrain_kind === "SERIES_HYBRID";
     const payload: CalculatorRequest = {
@@ -160,13 +201,15 @@ export function Calculator() {
       source_make: loadedCar?.make ?? decodedVin?.make ?? null,
       source_model: loadedCar?.model ?? decodedVin?.model ?? null,
       source_model_id: loadedCar?.model_id ?? null,
-      rf_analog_price_rub: data.rf_analog_price_rub ?? null,
+      rf_analog_price_rub: data.auto_market_comparison ? data.rf_analog_price_rub ?? null : null,
       auto_market_comparison: data.auto_market_comparison,
       note: data.note ?? null,
     };
     lastPayloadRef.current = payload;
     calcMutation.mutate(payload);
   }
+
+  const resetDisabled = urlMutation.isPending || vinMutation.isPending || calcMutation.isPending || saveMutation.isPending;
 
   return (
     <div className="space-y-6">
@@ -176,10 +219,22 @@ export function Calculator() {
         <CardContent>
           <div className="mb-5 space-y-4">
             <div className="space-y-2">
-              <Label className="flex items-center gap-1"><Link2 className="h-4 w-4" /> {t("urlLabel")}</Label>
+              <Label className="flex items-center gap-1"><Link2 className="h-4 w-4" /> {copy.myAutoLabel}</Label>
               <div className="flex gap-2">
-                <Input placeholder={t("urlPlaceholder")} value={carUrl} onChange={(e) => setCarUrl(e.target.value)} className="flex-1" />
-                <Button type="button" variant="secondary" disabled={!carUrl || urlMutation.isPending} onClick={() => urlMutation.mutate(carUrl)}>{urlMutation.isPending ? "..." : t("urlLoad")}</Button>
+                <Input
+                  placeholder={copy.myAutoPlaceholder}
+                  value={carSource}
+                  onChange={(e) => setCarSource(e.target.value)}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={!carSource.trim() || urlMutation.isPending}
+                  onClick={() => urlMutation.mutate(carSource.trim())}
+                >
+                  {urlMutation.isPending ? "..." : t("urlLoad")}
+                </Button>
               </div>
               {loadedCar && (
                 <div className="flex flex-wrap items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-md text-sm">
@@ -192,7 +247,7 @@ export function Calculator() {
                   )}
                   {loadedCar.mileage_km != null && <Badge variant="outline">{loadedCar.mileage_km.toLocaleString()} km</Badge>}
                   <a href={loadedCar.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs ml-auto">myauto.ge ↗</a>
-                  <button type="button" onClick={() => { setLoadedCar(null); setCarUrl(""); }}><X className="h-4 w-4 text-gray-400 hover:text-gray-700" /></button>
+                  <button type="button" onClick={() => { setLoadedCar(null); setCarSource(""); }}><X className="h-4 w-4 text-gray-400 hover:text-gray-700" /></button>
                 </div>
               )}
             </div>
@@ -254,16 +309,32 @@ export function Calculator() {
               </select>
             </div>
             <div><Label>{t("logisticsCost")}</Label><Input type="number" step="1000" {...register("logistics_cost_rub")} /></div>
-            <div className="md:col-span-2 rounded-lg border p-3 space-y-3">
-              <label className="flex items-start gap-3 text-sm cursor-pointer">
-                <input type="checkbox" className="mt-1 h-4 w-4" {...register("auto_market_comparison")} />
-                <span><span className="font-medium">{t("autoMarketComparison")}</span><span className="block text-xs text-muted-foreground mt-1">{t("autoMarketComparisonHint")}</span></span>
+
+            <div className="md:col-span-2 space-y-3">
+              <label className="flex items-center gap-3 text-sm cursor-pointer">
+                <input type="checkbox" className="h-4 w-4" {...register("auto_market_comparison")} />
+                <span className="font-medium">{t("autoMarketComparison")}</span>
               </label>
-              <div><Label>{t("rfAnalogPrice")}</Label><Input type="number" step="1000" {...register("rf_analog_price_rub")} /><p className="text-xs text-muted-foreground mt-1">{autoMarketComparison ? t("rfAnalogPriceOverrideHint") : t("rfAnalogPriceHint")}</p>{errors.rf_analog_price_rub && <p className="text-sm text-red-500">{errors.rf_analog_price_rub.message}</p>}</div>
+              {autoMarketComparison && (
+                <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+                  <p className="text-xs text-muted-foreground">{copy.marketHint}</p>
+                  <div>
+                    <Label>{t("rfAnalogPrice")}</Label>
+                    <Input type="number" step="1000" {...register("rf_analog_price_rub")} />
+                    <p className="text-xs text-muted-foreground mt-1">{t("rfAnalogPriceOverrideHint")}</p>
+                    {errors.rf_analog_price_rub && <p className="text-sm text-red-500">{errors.rf_analog_price_rub.message}</p>}
+                  </div>
+                </div>
+              )}
             </div>
+
             <div><Label>{t("note")}</Label><Input {...register("note")} /></div>
-            <div className="md:col-span-2 flex gap-3">
+            <div className="md:col-span-2 flex flex-wrap gap-3">
               <Button type="submit" disabled={calcMutation.isPending}>{calcMutation.isPending ? "..." : t("calculate")}</Button>
+              <Button type="button" variant="outline" onClick={resetCalculator} disabled={resetDisabled}>
+                <RotateCcw className="mr-2 h-4 w-4" />
+                {copy.reset}
+              </Button>
               {calcMutation.data && <Button type="button" variant="outline" onClick={() => lastPayloadRef.current && saveMutation.mutate(lastPayloadRef.current)} disabled={saveMutation.isPending}>{t("saveToHistory")}</Button>}
             </div>
           </form>
