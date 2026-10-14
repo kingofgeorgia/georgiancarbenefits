@@ -10,6 +10,8 @@ import { Separator } from "@/components/ui/separator";
 import { api } from "@/lib/api";
 import type { DealRating, DealShareOut } from "@/lib/types";
 
+const METRIC_HP_PER_KW = 1.3596216173;
+
 const pageCopy = {
   ru: { heading: "Персональный расчёт MileON", snapshot: "Расчёт зафиксирован", loading: "Загружаем расчёт...", missing: "Публичный расчёт не найден", source: "Исходное объявление", order: "Заказать этот автомобиль через MileON" },
   en: { heading: "MileON personal calculation", snapshot: "Calculation snapshot", loading: "Loading calculation...", missing: "Shared calculation not found", source: "Source listing", order: "Order this car with MileON" },
@@ -26,6 +28,10 @@ const ratingClass: Record<DealRating, string> = {
 
 function fmt(n: number) {
   return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(n);
+}
+
+function fmtNumber(n: number, maximumFractionDigits = 2) {
+  return new Intl.NumberFormat("ru-RU", { maximumFractionDigits }).format(n);
 }
 
 function contactUrl(message: string) {
@@ -53,6 +59,13 @@ export function SharedDealView({ publicId }: { publicId: string }) {
   const market = result.market_comparison;
   const title = [vehicle?.make ?? request.source_make, vehicle?.model ?? request.source_model, vehicle?.year ?? request.car_year].filter(Boolean).join(" ") || text.heading;
   const lead = `${text.order}: ${title}. ${t("total")}: ${fmt(result.total_cost_rub)}. Deal Score: ${deal?.score ?? "—"}/100. https://mileon.ge/${locale}/deal/${publicId}`;
+  const isAggregate = result.customs_payment_kind === "AGGREGATE_PAYMENT";
+  const powerKw = result.power_kw_used ?? null;
+  const excisePowerHp = isAggregate && powerKw != null ? powerKw * METRIC_HP_PER_KW : null;
+  const vatBaseRub = result.car_price_rub + result.import_duty_rub + result.excise_rub;
+  const vatRatePercent = isAggregate && result.vat_rub > 0 && vatBaseRub > 0
+    ? (result.vat_rub / vatBaseRub) * 100
+    : null;
 
   return (
     <main className="mx-auto max-w-3xl space-y-5 px-4 py-8">
@@ -71,11 +84,21 @@ export function SharedDealView({ publicId }: { publicId: string }) {
         <CardContent className="space-y-3">
           <Row label={t("carPrice")} value={fmt(result.car_price_rub)} />
           <Row label={t("customsFee")} value={fmt(result.customs_fee_rub)} />
-          {result.customs_payment_kind === "AGGREGATE_PAYMENT" ? (
+          {isAggregate ? (
             <>
               <Row label={t("importDuty")} value={fmt(result.import_duty_rub)} />
-              <Row label={t("excise")} value={fmt(result.excise_rub)} />
-              <Row label={t("vat")} value={fmt(result.vat_rub)} />
+              <Row
+                label={excisePowerHp != null && powerKw != null
+                  ? t("exciseWithPower", { hp: fmtNumber(excisePowerHp), kw: fmtNumber(powerKw) })
+                  : t("excise")}
+                value={fmt(result.excise_rub)}
+              />
+              <Row
+                label={vatRatePercent != null
+                  ? t("vatWithRate", { rate: fmtNumber(vatRatePercent) })
+                  : t("vat")}
+                value={fmt(result.vat_rub)}
+              />
             </>
           ) : <Row label={t("customsDuty")} value={fmt(result.customs_duty_rub)} />}
           <Row label={t("recyclingFee")} value={fmt(result.recycling_fee_rub)} />
@@ -112,15 +135,22 @@ export function SharedDealView({ publicId }: { publicId: string }) {
         </Card>
       )}
 
-      <Card className="bg-primary/5">
-        <CardContent className="space-y-3 pt-6">
-          <div className="font-semibold">{t("ctaTitle")}</div>
-          <p className="text-sm text-muted-foreground">{t("ctaDescription")}</p>
+      <Card className="border-2 border-primary/30 bg-primary/10 shadow-sm">
+        <CardContent className="space-y-4 pt-6">
+          <div className="flex items-start gap-3">
+            <div className="rounded-full bg-primary p-2 text-primary-foreground">
+              <MessageCircle className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-lg font-bold tracking-tight">{t("ctaTitle")}</div>
+              <p className="mt-2 text-sm font-medium text-foreground/80">{t("ctaDescription")}</p>
+            </div>
+          </div>
           <div className="flex flex-wrap gap-3">
-            <a href={contactUrl(lead)} target="_blank" rel="noopener noreferrer" className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-              <MessageCircle className="h-4 w-4" />{text.order}
+            <a href={contactUrl(lead)} target="_blank" rel="noopener noreferrer" className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 text-base font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-md sm:w-auto">
+              <MessageCircle className="h-5 w-5" />{text.order}
             </a>
-            {vehicle?.source_url && <a href={vehicle.source_url} target="_blank" rel="noopener noreferrer" className="inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium"><ExternalLink className="h-4 w-4" />{text.source}</a>}
+            {vehicle?.source_url && <a href={vehicle.source_url} target="_blank" rel="noopener noreferrer" className="inline-flex h-12 items-center gap-2 rounded-lg border bg-background px-5 text-sm font-medium"><ExternalLink className="h-4 w-4" />{text.source}</a>}
           </div>
         </CardContent>
       </Card>
