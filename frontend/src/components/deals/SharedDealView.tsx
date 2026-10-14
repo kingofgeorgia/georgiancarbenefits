@@ -13,9 +13,9 @@ import type { DealRating, DealShareOut } from "@/lib/types";
 const METRIC_HP_PER_KW = 1.3596216173;
 
 const pageCopy = {
-  ru: { heading: "Персональный расчёт MileON", snapshot: "Расчёт зафиксирован", loading: "Загружаем расчёт...", missing: "Публичный расчёт не найден", source: "Исходное объявление", order: "Заказать этот автомобиль через MileON" },
-  en: { heading: "MileON personal calculation", snapshot: "Calculation snapshot", loading: "Loading calculation...", missing: "Shared calculation not found", source: "Source listing", order: "Order this car with MileON" },
-  ka: { heading: "MileON-ის პერსონალური გამოთვლა", snapshot: "გამოთვლის ფიქსირებული ვერსია", loading: "გამოთვლა იტვირთება...", missing: "საჯარო გამოთვლა ვერ მოიძებნა", source: "საწყისი განცხადება", order: "ამ ავტომობილის შეკვეთა MileON-ით" },
+  ru: { heading: "Персональный расчёт MileON", snapshot: "Расчёт зафиксирован", loading: "Загружаем расчёт...", missing: "Публичный расчёт не найден", source: "Исходное объявление", order: "Заказать этот автомобиль через MileON", medianPrice: "Медианная цена" },
+  en: { heading: "MileON personal calculation", snapshot: "Calculation snapshot", loading: "Loading calculation...", missing: "Shared calculation not found", source: "Source listing", order: "Order this car with MileON", medianPrice: "Median price" },
+  ka: { heading: "MileON-ის პერსონალური გამოთვლა", snapshot: "გამოთვლის ფიქსირებული ვერსია", loading: "გამოთვლა იტვირთება...", missing: "საჯარო გამოთვლა ვერ მოიძებნა", source: "საწყისი განცხადება", order: "ამ ავტომობილის შეკვეთა MileON-ით", medianPrice: "მედიანური ფასი" },
 } as const;
 
 const ratingClass: Record<DealRating, string> = {
@@ -128,7 +128,7 @@ export function SharedDealView({ publicId }: { publicId: string }) {
           <CardContent className="grid gap-3 sm:grid-cols-2">
             {market.similar_count != null && <Row label={t("marketSimilarCount")} value={String(market.similar_count)} />}
             {market.min_price_rub != null && <Row label={t("marketMinPrice")} value={fmt(market.min_price_rub)} />}
-            {market.median_price_rub != null && <Row label={t("marketMedianPrice")} value={fmt(market.median_price_rub)} />}
+            {market.median_price_rub != null && <Row label={market.source === "drom.ru" ? text.medianPrice : t("marketMidpointPrice")} value={fmt(market.median_price_rub)} />}
             {market.average_price_rub != null && <Row label={t("marketAveragePrice")} value={fmt(market.average_price_rub)} />}
             {market.market_midpoint_rub != null && <Row label={t("marketMidpointPrice")} value={fmt(market.market_midpoint_rub)} />}
             {market.max_price_rub != null && <Row label={t("marketMaxPrice")} value={fmt(market.max_price_rub)} />}
