@@ -120,7 +120,7 @@ async def calculate_total(payload: CalculatorRequest):
         market_comparison = _market_comparison_model(market_result)
         if market_result.status == MarketComparisonStatus.AVAILABLE:
             reference_price = market_result.reference_price_rub
-            deal_reference_source = "AUTO_RU_BUSINESS"
+            deal_reference_source = "DROM"
 
     if reference_price is not None:
         try:
