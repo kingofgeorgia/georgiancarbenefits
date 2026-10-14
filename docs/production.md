@@ -5,7 +5,7 @@ The production stack is intentionally separate from the local development stack.
 - Local development: `docker-compose.yml`
 - Production: `docker-compose.prod.yml`
 - Public entry point: Caddy on ports 80/443
-- PostgreSQL, FastAPI and Next.js are not published directly on host ports
+- PostgreSQL, Redis, FastAPI and Next.js are not published directly on host ports
 
 ## Prerequisites
 
@@ -38,7 +38,9 @@ APP_DOMAIN=cars.example.com
 FRONTEND_ORIGIN=https://cars.example.com
 ```
 
-The backend refuses to start in production when the JWT secret, database password or frontend origin is unsafe.
+The backend refuses to start in production when the JWT secret, database password,
+frontend origin or shared Redis rate storage is unsafe. See
+[public API protection](public-api-protection.md) for configurable beta quotas.
 
 Validate the Compose configuration:
 
@@ -52,10 +54,10 @@ Build production images:
 docker compose --env-file .env.production -f docker-compose.prod.yml build
 ```
 
-Start PostgreSQL first:
+Start PostgreSQL and shared quota storage first:
 
 ```bash
-docker compose --env-file .env.production -f docker-compose.prod.yml up -d postgres
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d postgres redis
 ```
 
 Apply database migrations:
@@ -151,6 +153,7 @@ Do not use `down -v` unless permanent deletion of PostgreSQL and Caddy persisten
 - Never commit `.env.production`.
 - Only Caddy publishes host ports in the production Compose file.
 - Do not publish PostgreSQL port 5432 to the internet.
+- Do not publish Redis port 6379; retain its volume across updates so quotas persist.
 - Use a long random `SECRET_KEY` and database password.
 - Keep the server, Docker Engine and base images updated.
 - Restrict SSH access and use a host firewall/security group.

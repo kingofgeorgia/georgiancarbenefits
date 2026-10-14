@@ -9,6 +9,15 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      REDIS_TEST_URI: async+redis://localhost:6379/15
     defaults:
       run:
         working-directory: backend
@@ -63,6 +72,12 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     services:
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
       postgres:
         image: postgres:16-alpine
         env:
@@ -79,6 +94,7 @@ jobs:
       FRONTEND_ORIGIN: http://localhost:3000
       NEXT_PUBLIC_API_URL: http://localhost:8000
       DROM_API_ACCESS_CONFIRMED: "false"
+      API_RATE_STORAGE_URI: async+redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

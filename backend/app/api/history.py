@@ -9,7 +9,7 @@ from app.calculation.tariffs import get_calculation_rule_version
 from app.core.db import get_db
 from app.models.calculation import Calculation
 from app.models.user import User
-from app.schemas.calculator import CalculationOut, CalculatorRequest
+from app.schemas.calculator import CalculationOut, CalculatorInput
 from app.services import currency
 from app.services.personal_import_customs import calculatePersonalImportCustoms
 
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/history", tags=["history"])
 
 @router.post("/", response_model=CalculationOut, status_code=status.HTTP_201_CREATED)
 async def save_calculation(
-    payload: CalculatorRequest,
+    payload: CalculatorInput,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):

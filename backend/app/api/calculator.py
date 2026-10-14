@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, status
 from app.calculation.age import resolve_vehicle_age
 from app.calculation.tariffs import get_calculation_rule_version
 from app.schemas.calculator import (
-    CalculatorRequest,
+    CalculatorInput,
     CalculatorResult,
     CurrencyRates,
     DealAssessmentOut,
@@ -63,7 +63,7 @@ def _market_comparison_model(result: MarketComparison) -> MarketComparisonOut:
 
 
 @router.post("/total", response_model=CalculatorResult)
-async def calculate_total(payload: CalculatorRequest):
+async def calculate_total(payload: CalculatorInput):
     """Public calculator for personal passenger-car import estimates."""
     try:
         snapshot = await currency.get_rate_snapshot()

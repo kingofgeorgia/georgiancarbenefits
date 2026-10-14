@@ -7,6 +7,7 @@ from curl_cffi.requests import AsyncSession
 
 from app.calculation.age import resolve_vehicle_age
 from app.core.config import settings
+from app.core.public_urls import is_myauto_image_url
 from app.schemas.cars import CarListing
 from app.services.personal_import_customs import (
     PowertrainKind,
@@ -174,8 +175,13 @@ async def _load_models_directory(session: AsyncSession, man_id: int) -> list[dic
     except Exception:
         pass
 
-    _models_directory_cache[man_id] = directory
-    _models_cache[man_id] = lookup
+    if directory:
+        if man_id not in _models_directory_cache and len(_models_directory_cache) >= 256:
+            oldest = next(iter(_models_directory_cache))
+            _models_directory_cache.pop(oldest, None)
+            _models_cache.pop(oldest, None)
+        _models_directory_cache[man_id] = directory
+        _models_cache[man_id] = lookup
     return directory
 
 
@@ -193,12 +199,17 @@ async def _resolve_model_name(
 
 def _build_image_urls(raw: dict[str, Any]) -> list[str]:
     photo_path = str(raw.get("photo") or "").strip()
-    car_id = int(raw.get("car_id", 0) or 0)
-    pic_number = int(raw.get("pic_number", 0) or 0)
-    photo_ver = int(raw.get("photo_ver", 0) or 0)
+    try:
+        car_id = int(raw.get("car_id", 0) or 0)
+        pic_number = min(int(raw.get("pic_number", 0) or 0), 30)
+        photo_ver = int(raw.get("photo_ver", 0) or 0)
+    except (ValueError, TypeError, OverflowError):
+        return []
     if not photo_path or not car_id or pic_number <= 0:
         fallback = str(raw.get("photo") or "").strip()
-        return [fallback] if fallback.startswith("http") else []
+        return [fallback] if is_myauto_image_url(fallback) else []
+    if not re.fullmatch(r"[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*", photo_path) or len(photo_path) > 256:
+        return [photo_path] if is_myauto_image_url(photo_path) else []
     version = f"?v={photo_ver}" if photo_ver else ""
     return [
         f"{_MYAUTO_IMAGE_BASE_URL}/{photo_path}/large/{car_id}_{index}.jpg{version}"
@@ -225,7 +236,7 @@ async def search_cars(
         params["PriceTo"] = price_usd_to
 
     try:
-        async with AsyncSession(impersonate=_IMPERSONATE, timeout=15) as client:
+        async with AsyncSession(impersonate=_IMPERSONATE, timeout=15, allow_redirects=False) as client:
             response = await client.get(
                 f"{settings.myauto_api_url}/products",
                 params=params,
@@ -306,7 +317,7 @@ def parse_car(raw: dict[str, Any]) -> CarListing:
 
 async def get_car_by_id(car_id: int) -> dict[str, Any] | None:
     try:
-        async with AsyncSession(impersonate=_IMPERSONATE, timeout=15) as client:
+        async with AsyncSession(impersonate=_IMPERSONATE, timeout=15, allow_redirects=False) as client:
             response = await client.get(
                 f"{settings.myauto_api_url}/products/{car_id}",
                 headers={"Accept": "application/json"},
@@ -329,7 +340,7 @@ async def get_car_by_id(car_id: int) -> dict[str, Any] | None:
 
 async def get_makes() -> list[dict[str, Any]]:
     try:
-        async with AsyncSession(impersonate=_IMPERSONATE, timeout=10) as client:
+        async with AsyncSession(impersonate=_IMPERSONATE, timeout=10, allow_redirects=False) as client:
             response = await client.get(
                 f"{settings.myauto_api_url}/vehicle/mans",
                 params={"vehicle_types": "0.1.2"},
@@ -343,7 +354,7 @@ async def get_makes() -> list[dict[str, Any]]:
 
 async def get_models(make_id: int) -> list[dict[str, Any]]:
     try:
-        async with AsyncSession(impersonate=_IMPERSONATE, timeout=10) as client:
+        async with AsyncSession(impersonate=_IMPERSONATE, timeout=10, allow_redirects=False) as client:
             return await _load_models_directory(client, make_id)
     except Exception:
         return []

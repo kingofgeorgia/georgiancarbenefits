@@ -14,6 +14,7 @@ def production_settings(**overrides: object) -> Settings:
         "secret_key": STRONG_SECRET,
         "postgres_password": STRONG_DB_PASSWORD,
         "frontend_origin": "https://cars.example.com",
+        "api_rate_storage_uri": "async+redis://redis:6379/0",
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)
@@ -48,3 +49,14 @@ def test_production_rejects_localhost_origin() -> None:
 def test_production_requires_https_origin() -> None:
     with pytest.raises(ValidationError, match="FRONTEND_ORIGIN"):
         production_settings(frontend_origin="http://cars.example.com")
+
+
+def test_production_requires_shared_rate_counters():
+    with pytest.raises(ValidationError, match="Redis"):
+        production_settings(api_rate_storage_uri="async+memory://")
+
+
+@pytest.mark.parametrize("value", ["", "0/minute", "nonsense", "-1/day"])
+def test_invalid_rate_configuration_fails_startup(value):
+    with pytest.raises((ValidationError, ValueError)):
+        Settings(_env_file=None, api_rate_share_client=value)

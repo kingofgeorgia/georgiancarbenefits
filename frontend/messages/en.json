@@ -178,6 +178,9 @@
     "required": "Required field",
     "invalidEmail": "Invalid email",
     "minPassword": "Minimum 8 characters",
-    "generic": "Something went wrong. Please try again."
+    "generic": "Something went wrong. Please try again.",
+    "rateLimited": "Too many requests. Please wait a little and try again.",
+    "payloadTooLarge": "Too much data. Shorten your note and try again.",
+    "temporarilyUnavailable": "The service is temporarily unavailable. Please try again shortly."
   }
 }

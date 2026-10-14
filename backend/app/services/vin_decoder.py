@@ -308,11 +308,11 @@ async def decode_vin(vin: str) -> VinDecodeResult:
             response = await client.get(url, params={"format": "json"}, headers={"Accept": "application/json"})
             response.raise_for_status()
             payload = response.json()
-    except (httpx.HTTPError, ValueError) as exc:
+    except (httpx.HTTPError, ValueError):
         return VinDecodeResult(
             status=VinDecodeStatus.PROVIDER_ERROR,
             vin=normalized,
-            error_text=f"NHTSA vPIC is temporarily unavailable: {exc}",
+            error_text="NHTSA vPIC is temporarily unavailable",
         )
 
     if not isinstance(payload, dict):
@@ -326,5 +326,10 @@ async def decode_vin(vin: str) -> VinDecodeResult:
 
     if result.status in {VinDecodeStatus.COMPLETE, VinDecodeStatus.PARTIAL, VinDecodeStatus.NOT_FOUND}:
         async with _cache_lock:
+            expired = [key for key, (expires, _) in _cache.items() if expires <= now]
+            for key in expired:
+                del _cache[key]
+            if normalized not in _cache and len(_cache) >= 2048:
+                del _cache[next(iter(_cache))]
             _cache[normalized] = (now + settings.nhtsa_vpic_cache_ttl_seconds, result)
     return result

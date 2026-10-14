@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, apiErrorMessage } from "@/lib/api";
 import type { CarListing } from "@/lib/types";
 import Image from "next/image";
 
@@ -19,6 +19,7 @@ function fmt(n: number) {
 
 export function CarCatalog() {
   const t = useTranslations("catalog");
+  const tErr = useTranslations("errors");
 
   const [filters, setFilters] = useState({
     make_id: "",
@@ -33,10 +34,11 @@ export function CarCatalog() {
   const params = new URLSearchParams();
   Object.entries(filters).forEach(([k, v]) => { if (v) params.set(k, v); });
 
-  const { data, isFetching } = useQuery<CarListing[]>({
+  const { data, isFetching, error, refetch } = useQuery<CarListing[]>({
     queryKey: ["cars", filters],
     queryFn: () => api.get(`/cars/search?${params}`).then((r) => r.data),
     enabled: submitted,
+    retry: false,
   });
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -67,11 +69,15 @@ export function CarCatalog() {
               <Input name="logistics_cost_rub" type="number" onChange={handleChange} value={filters.logistics_cost_rub} />
             </div>
           </div>
-          <Button className="mt-4" onClick={() => setSubmitted(true)} disabled={isFetching}>
+          <Button className="mt-4" onClick={() => submitted ? void refetch() : setSubmitted(true)} disabled={isFetching}>
             {isFetching ? "..." : t("search")}
           </Button>
         </CardContent>
       </Card>
+
+      {error && <p role="alert" className="text-sm text-red-600">{apiErrorMessage(error, tErr("generic"), {
+        rateLimited: tErr("rateLimited"), payloadTooLarge: tErr("payloadTooLarge"), temporarilyUnavailable: tErr("temporarilyUnavailable"),
+      })}</p>}
 
       {data && data.length === 0 && (
         <p className="text-gray-500">{t("noResults")}</p>

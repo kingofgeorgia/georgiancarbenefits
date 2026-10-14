@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.services.personal_import_customs import PowertrainKind
 from app.services.vin_decoder import VinDecodeStatus, normalize_vin
@@ -41,7 +41,8 @@ class CarListing(BaseModel):
 
 
 class VinDecodeRequest(BaseModel):
-    vin: str
+    model_config = ConfigDict(extra="forbid")
+    vin: str = Field(min_length=1, max_length=64)
 
     @field_validator("vin")
     @classmethod
