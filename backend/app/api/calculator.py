@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status
 
@@ -17,6 +17,7 @@ from app.services.personal_import_customs import calculatePersonalImportCustoms
 from app.services.russian_market import (
     MarketComparison,
     MarketComparisonStatus,
+    MarketProviderError,
     get_market_comparison,
 )
 
@@ -111,12 +112,28 @@ async def calculate_total(payload: CalculatorRequest):
     if reference_price is not None:
         deal_reference_source = "MANUAL"
     elif payload.auto_market_comparison:
-        market_result = await get_market_comparison(
-            make=payload.source_make,
-            model=payload.source_model,
-            year=payload.car_year,
-            mileage_km=payload.mileage_km,
-        )
+        try:
+            market_result = await get_market_comparison(
+                make=payload.source_make,
+                model=payload.source_model,
+                year=payload.car_year,
+                mileage_km=payload.mileage_km,
+            )
+        except MarketProviderError as exc:
+            # Market comparison is optional. A malformed server-side Drom map or
+            # authorization JSON must never invalidate a customs calculation.
+            market_result = MarketComparison(
+                status=MarketComparisonStatus.PROVIDER_ERROR,
+                provider="Drom Search API",
+                source="drom.ru",
+                checked_at=datetime.now(timezone.utc),
+                scope="RU_DROM_LISTINGS",
+                make=payload.source_make,
+                model=payload.source_model,
+                year=payload.car_year,
+                mileage_km=payload.mileage_km,
+                reason=str(exc),
+            )
         market_comparison = _market_comparison_model(market_result)
         if market_result.status == MarketComparisonStatus.AVAILABLE:
             reference_price = market_result.reference_price_rub
