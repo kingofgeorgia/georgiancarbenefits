@@ -60,7 +60,7 @@ export function Calculator() {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["horse_power"], message: tErr("required") });
     }
     if (data.manufacture_date) {
-      const parsed = new Date(`${data.manufacture_date}T00:00:00`);
+      const parsed = new Date(`${data.manufacture_date}-01T00:00:00`);
       if (Number.isNaN(parsed.getTime()) || parsed.getFullYear() !== data.car_year) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["manufacture_date"], message: t("manufactureDateYearError") });
       }
@@ -150,7 +150,7 @@ export function Calculator() {
     const electricRegulatoryPower = data.powertrain_kind === "EV" || data.powertrain_kind === "SERIES_HYBRID";
     const payload: CalculatorRequest = {
       ...data,
-      manufacture_date: data.manufacture_date ?? null,
+      manufacture_date: data.manufacture_date ? `${data.manufacture_date}-01` : null,
       horse_power: electricRegulatoryPower ? null : data.horse_power ?? null,
       electric_power_kw: electricRegulatoryPower ? data.electric_power_kw ?? null : null,
       mileage_km: data.mileage_km ?? null,
@@ -235,7 +235,7 @@ export function Calculator() {
             <div><Label>{t("carPriceUsd")}</Label><Input type="number" step="0.01" {...register("car_price_usd")} />{errors.car_price_usd && <p className="text-sm text-red-500">{errors.car_price_usd.message}</p>}</div>
             <div><Label>{t("engineVolume")}</Label><Input type="number" disabled={powertrainKind === "EV"} {...register("engine_volume_cc")} />{errors.engine_volume_cc && <p className="text-sm text-red-500">{errors.engine_volume_cc.message}</p>}</div>
             <div><Label>{t("carYear")}</Label><Input type="number" min={1990} max={currentYear} {...register("car_year")} />{errors.car_year && <p className="text-sm text-red-500">{errors.car_year.message}</p>}</div>
-            <div><Label>{t("manufactureDate")}</Label><Input type="date" {...register("manufacture_date")} /><p className="text-xs text-muted-foreground mt-1">{t("manufactureDateHint")}</p>{errors.manufacture_date && <p className="text-sm text-red-500">{errors.manufacture_date.message}</p>}</div>
+            <div><Label>{t("manufactureDate")}</Label><Input type="month" {...register("manufacture_date")} /><p className="text-xs text-muted-foreground mt-1">{t("manufactureDateHint")}</p>{errors.manufacture_date && <p className="text-sm text-red-500">{errors.manufacture_date.message}</p>}</div>
             {usesElectricRegulatoryPower ? (
               <div>
                 <Label>{t("electricPowerKw")}</Label>

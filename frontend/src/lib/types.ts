@@ -130,8 +130,8 @@ export interface CalculatorResult {
   customs_total_rub: number;
   logistics_cost_rub: number;
   total_cost_rub: number;
-  power_kw_used: number;
-  power_basis: string;
+  power_kw_used?: number | null;
+  power_basis?: string | null;
   savings_vs_rf_rub?: number | null;
   deal_assessment?: DealAssessment | null;
   market_comparison?: MarketComparison | null;

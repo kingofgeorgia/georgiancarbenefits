@@ -14,6 +14,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 
+const METRIC_HP_PER_KW = 1.3596216173;
+
 function fmt(n: number) {
   return new Intl.NumberFormat("ru-RU", {
     style: "currency",
@@ -22,8 +24,17 @@ function fmt(n: number) {
   }).format(n);
 }
 
+function fmtNumber(n: number, maximumFractionDigits = 2) {
+  return new Intl.NumberFormat("ru-RU", { maximumFractionDigits }).format(n);
+}
+
 function fmtKm(n: number) {
   return `${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(n)} km`;
+}
+
+function fmtMonth(value: string) {
+  const [year, month] = value.split("-");
+  return year && month ? `${month}.${year}` : value;
 }
 
 interface Props {
@@ -64,6 +75,12 @@ export function CalculatorResults({ result, vehicle }: Props) {
   const powerBasisLabel = result.power_basis === "MAX_30_MINUTE_ELECTRIC_POWER_KW"
     ? t("powerBasis30Minute")
     : t("powerBasisHorsepower");
+  const powerKw = result.power_kw_used ?? null;
+  const excisePowerHp = isAggregate && powerKw != null ? powerKw * METRIC_HP_PER_KW : null;
+  const vatBaseRub = result.car_price_rub + result.import_duty_rub + result.excise_rub;
+  const vatRatePercent = isAggregate && result.vat_rub > 0 && vatBaseRub > 0
+    ? (result.vat_rub / vatBaseRub) * 100
+    : null;
 
   return (
     <Card>
@@ -84,8 +101,18 @@ export function CalculatorResults({ result, vehicle }: Props) {
         {isAggregate ? (
           <>
             <Row label={t("importDuty")} value={fmt(result.import_duty_rub)} />
-            <Row label={t("excise")} value={fmt(result.excise_rub)} />
-            <Row label={t("vat")} value={fmt(result.vat_rub)} />
+            <Row
+              label={excisePowerHp != null && powerKw != null
+                ? t("exciseWithPower", { hp: fmtNumber(excisePowerHp), kw: fmtNumber(powerKw) })
+                : t("excise")}
+              value={fmt(result.excise_rub)}
+            />
+            <Row
+              label={vatRatePercent != null
+                ? t("vatWithRate", { rate: fmtNumber(vatRatePercent) })
+                : t("vat")}
+              value={fmt(result.vat_rub)}
+            />
             <Row label={t("aggregatePayment")} value={fmt(result.customs_duty_rub)} bold />
           </>
         ) : (
@@ -93,10 +120,12 @@ export function CalculatorResults({ result, vehicle }: Props) {
         )}
 
         <Row label={t("recyclingFee")} value={fmt(result.recycling_fee_rub)} />
-        <Row
-          label={t("powerUsed")}
-          value={`${result.power_kw_used.toFixed(2)} kW · ${powerBasisLabel}`}
-        />
+        {powerKw != null && result.power_basis && (
+          <Row
+            label={t("powerUsed")}
+            value={`${fmtNumber(powerKw)} kW · ${powerBasisLabel}`}
+          />
+        )}
         <Row label={t("customsTotal")} value={fmt(result.customs_total_rub)} bold />
         <Row label={t("logistics")} value={fmt(result.logistics_cost_rub)} />
         <Separator />
@@ -197,18 +226,25 @@ export function CalculatorResults({ result, vehicle }: Props) {
           </div>
         )}
 
-        <div className="mt-5 rounded-xl border bg-primary/5 p-4">
-          <div className="font-semibold">{t("ctaTitle")}</div>
-          <p className="mt-1 text-sm text-muted-foreground">{t("ctaDescription")}</p>
-          <a
-            href={contactUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            <MessageCircle className="h-4 w-4" />
-            {t("ctaButton")}
-          </a>
+        <div className="mt-6 rounded-2xl border-2 border-primary/30 bg-primary/10 p-5 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="rounded-full bg-primary p-2 text-primary-foreground">
+              <MessageCircle className="h-5 w-5" />
+            </div>
+            <div className="flex-1">
+              <div className="text-lg font-bold tracking-tight">{t("ctaTitle")}</div>
+              <p className="mt-2 text-sm font-medium text-foreground/80">{t("ctaDescription")}</p>
+              <a
+                href={contactUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 text-base font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-md sm:w-auto"
+              >
+                <MessageCircle className="h-5 w-5" />
+                {t("ctaButton")}
+              </a>
+            </div>
+          </div>
         </div>
 
         <div className="mt-4 space-y-1 text-xs text-gray-500">
@@ -221,7 +257,7 @@ export function CalculatorResults({ result, vehicle }: Props) {
             {t("rateSource")}: {result.rates.source}, {result.rates.effective_date}
             {result.rates.is_stale ? ` · ${t("staleRate")}` : ""}
           </div>
-          <div>{t("manufactureDateUsed")}: {result.manufacture_date_used}</div>
+          <div>{t("manufactureDateUsed")}: {fmtMonth(result.manufacture_date_used)}</div>
           <div>{t("ruleVersion")}: {result.calculation_rule_version}</div>
         </div>
       </CardContent>
