@@ -10,22 +10,23 @@ The application estimates the total cost of buying a vehicle in Georgia and impo
 
 - Personal-use import calculation for passenger cars
 - Versioned 2026 customs and recycling rules
-- Exact manufacture-date support with year-only estimation warnings
+- Manufacture-month support with year-only estimation warnings
 - ICE, hybrid, series-hybrid and EV calculation paths
 - Official Bank of Russia exchange rates with source/staleness metadata
-- myauto.ge vehicle import workflow
+- myauto.ge vehicle import workflow by listing URL or listing ID
 - Free NHTSA vPIC VIN decoder with calculator autofill
-- Optional automatic Russia-market appraisal through official Auto.ru Business Appraisal.API
-- Comparable-market metadata: sample size, market boundaries, mileage-adjusted average, source and check time
+- Optional Russia-market comparison through Drom Search API after authorized access is confirmed
+- Comparable-market metadata: sample size, min/median/average/max prices, mileage, source and check time
 - Manual Russia-market price override for controlled scenarios
 - MileON Deal Score (0–100), savings percentage and market-position rating
+- Shareable immutable Deal Pages
 - MileON lead CTA with prefilled calculation and vehicle context
 - Authenticated calculation history
 - Russian, English and Georgian UI
 - Docker-based local and production environments
 - Backend/frontend/PowerShell/production-Docker CI checks
 
-Automatic market comparison is optional and requires authorized Auto.ru Business API access. Without a token, customs/import calculations continue to work and the UI reports that the market provider is not configured.
+Automatic Drom comparison is optional and intentionally disabled until authorized Drom API/database access is confirmed. Without Drom access, customs/import calculations continue to work and a manual Russia-market reference price can still be used for Deal Score.
 
 ## Stack
 
@@ -96,20 +97,30 @@ API docs: `http://localhost:8000/docs`
 
 The calculator supports two complementary vehicle-identification paths:
 
-1. paste a `myauto.ge` listing URL to import listing price, mileage and normalized vehicle data;
+1. paste a `myauto.ge` listing URL **or numeric listing ID** to import listing price, mileage and normalized vehicle data;
 2. enter a 17-character VIN to decode available make/model/year/engine/power data through the free NHTSA vPIC API.
 
 VIN data is a convenience input. Exact customs-critical specifications should still be verified against vehicle documents. See [`docs/vin-decoder.md`](docs/vin-decoder.md).
 
-### Optional Auto.ru Business market comparison
+### Optional Drom market comparison
 
-Obtain authorized Auto.ru Business API access and set the issued token only in your local/deployment environment:
+The Drom provider is present but disabled by default:
 
 ```env
-AUTO_RU_BUSINESS_TOKEN=<secret token>
+DROM_API_ACCESS_CONFIRMED=false
+DROM_API_AUTH_QUERY_JSON={}
+DROM_VEHICLE_ID_MAP_JSON={}
 ```
 
-The default configuration intentionally restricts market appraisal to `auto_ru` listings. See [`docs/russian-market-provider.md`](docs/russian-market-provider.md) for provider behavior, reference-price policy and status handling.
+Drom documents `GET https://api.drom.ru/v1.2/bulls/search`, but Drom's usage rules restrict automated database extraction without authorized access. Do not enable the provider using scraped pages or reverse-engineered application secrets.
+
+After Drom confirms access for this use case, configure any Drom-issued request parameters and the authorized `firmId`/`modelId` map, then set:
+
+```env
+DROM_API_ACCESS_CONFIRMED=true
+```
+
+See [`docs/russian-market-provider.md`](docs/russian-market-provider.md) for the complete activation checklist, matching policy, median-price calculation and status handling.
 
 ## Production Docker
 
@@ -118,7 +129,7 @@ Production is isolated from the development Compose stack.
 ```bash
 cp .env.production.example .env.production
 # Edit APP_DOMAIN, FRONTEND_ORIGIN, SECRET_KEY and POSTGRES_PASSWORD.
-# Optionally set AUTO_RU_BUSINESS_TOKEN for automatic Russia-market comparison.
+# Optionally configure authorized Drom access for automatic Russia-market comparison.
 
 docker compose --env-file .env.production -f docker-compose.prod.yml config
 docker compose --env-file .env.production -f docker-compose.prod.yml build
@@ -135,7 +146,7 @@ In production:
 - Caddy terminates HTTPS and proxies `/api/*` to FastAPI;
 - the backend refuses unsafe production secrets/origins;
 - `NEXT_PUBLIC_MILEON_CONTACT_URL` controls the public MileON CTA destination;
-- Auto.ru Business credentials remain server-side environment secrets.
+- any authorized Drom integration parameters remain server-side environment secrets.
 
 See [`docs/production.md`](docs/production.md) for the complete deployment, update, backup and verification procedure.
 
@@ -181,7 +192,7 @@ It calculates and records:
 
 `backend/app/services/vin_decoder.py` normalizes VIN data from NHTSA vPIC and can prefill vehicle identity/specification fields before calculation.
 
-`backend/app/services/russian_market.py` optionally resolves the known vehicle identity against the official Auto.ru Business catalog and obtains comparable-market appraisal metadata. A manual Russia-market price takes precedence when explicitly supplied.
+`backend/app/services/russian_market.py` optionally requests comparable Drom listings for the known vehicle identity after authorized access is configured. It de-duplicates listings, removes configurable price-tail outliers, calculates min/median/average/max statistics and uses the statistical median as the Deal Score reference. A manual Russia-market price takes precedence when explicitly supplied.
 
 When a Russia-market reference price is available, `backend/app/services/deal_score.py` additionally calculates:
 
@@ -203,7 +214,7 @@ A one-off calculation does not require authentication. User-specific functionali
 
 ## Testing
 
-Regression tests cover representative customs scenarios, boundary conditions, Deal Score behavior, VIN normalization and documented Auto.ru Business appraisal responses. CI also validates the frontend build, PowerShell local-start script and production Docker configuration/images.
+Regression tests cover representative customs scenarios, boundary conditions, Deal Score behavior, VIN normalization, Drom market-result normalization and outlier-resistant median calculation. CI also validates the frontend build, PowerShell local-start script and production Docker configuration/images.
 
 Run backend checks locally:
 
@@ -251,15 +262,14 @@ georgiancarbenefits/
 - PostgreSQL has no published production host port.
 - Production application containers run behind Caddy rather than being exposed directly.
 - Treat external vehicle, market-price and exchange-rate data as untrusted input.
-- Do not replace the official Auto.ru Business integration with unauthorized public-page scraping.
+- Do not replace authorized Drom integration with public-page scraping or reverse-engineered application credentials.
 
 ## Roadmap
 
-- add shareable public Deal Pages with vehicle/calculation/Deal Score/MileON CTA;
 - expand curated/learned vehicle specification coverage;
-- improve comparable matching with richer generation/body/engine attributes when available from source data;
+- improve comparable matching with richer generation/body/engine attributes when Drom/source data permits it;
 - persist market-comparison snapshots in authenticated history;
-- add production observability, backups and automated deployment;
+- add production observability, external backups and automated deployment;
 - add branch protection / required CI checks for `main`.
 
 ## License
