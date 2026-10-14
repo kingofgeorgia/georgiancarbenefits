@@ -1,10 +1,10 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import type { CalculatorResult, CarListing, DealRating } from "@/lib/types";
+import type { CalculatorResult, CarListing, DealRating, MarketComparisonStatus } from "@/lib/types";
 import {
   AlertTriangle,
   BarChart3,
@@ -15,6 +15,54 @@ import {
 } from "lucide-react";
 
 const METRIC_HP_PER_KW = 1.3596216173;
+
+const dromCopy = {
+  ru: {
+    medianPrice: "Медианная цена",
+    mileageFiltered: "Deal Score использует медиану объявлений Drom с похожим пробегом после удаления крайних ценовых выбросов.",
+    medianReference: "Deal Score использует медиану объявлений Drom того же года после удаления крайних ценовых выбросов.",
+    referenceSource: "Drom",
+    status: {
+      NOT_CONFIGURED: "Автоматическое сравнение через Drom подготовлено, но разрешённый API-доступ ещё не подтверждён на сервере.",
+      MISSING_VEHICLE_DATA: "Для автоматического сравнения нужны марка и модель автомобиля.",
+      VEHICLE_NOT_FOUND: "Для этой марки или модели ещё не настроены идентификаторы Drom.",
+      INSUFFICIENT_DATA: "Для этого автомобиля недостаточно подходящих объявлений Drom для надёжной оценки.",
+      AUTH_ERROR: "Drom отклонил авторизацию. Проверьте разрешённый API-доступ и параметры интеграции.",
+      PROVIDER_ERROR: "Сервис рыночной оценки Drom временно недоступен. Таможенный расчёт при этом остаётся действительным.",
+      AVAILABLE: "Рыночная оценка доступна.",
+    },
+  },
+  en: {
+    medianPrice: "Median price",
+    mileageFiltered: "Deal Score uses the median of Drom listings with similar mileage after trimming extreme price outliers.",
+    medianReference: "Deal Score uses the median of same-year Drom listings after trimming extreme price outliers.",
+    referenceSource: "Drom",
+    status: {
+      NOT_CONFIGURED: "Automatic Drom comparison is prepared, but authorized API access has not yet been confirmed on the server.",
+      MISSING_VEHICLE_DATA: "Make and model are required for automatic comparison.",
+      VEHICLE_NOT_FOUND: "Drom identifiers are not configured yet for this make or model.",
+      INSUFFICIENT_DATA: "There are not enough suitable Drom listings for a reliable appraisal.",
+      AUTH_ERROR: "Drom rejected authorization. Check authorized API access and integration parameters.",
+      PROVIDER_ERROR: "The Drom market service is temporarily unavailable. The customs calculation remains available.",
+      AVAILABLE: "Market appraisal is available.",
+    },
+  },
+  ka: {
+    medianPrice: "მედიანური ფასი",
+    mileageFiltered: "Deal Score იყენებს მსგავსი გარბენის მქონე Drom-ის განცხადებების მედიანას, უკიდურესი ფასების გამორიცხვის შემდეგ.",
+    medianReference: "Deal Score იყენებს იმავე წლის Drom-ის განცხადებების მედიანას, უკიდურესი ფასების გამორიცხვის შემდეგ.",
+    referenceSource: "Drom",
+    status: {
+      NOT_CONFIGURED: "Drom-თან ავტომატური შედარება მომზადებულია, მაგრამ სერვერზე ავტორიზებული API-წვდომა ჯერ არ არის დადასტურებული.",
+      MISSING_VEHICLE_DATA: "ავტომატური შედარებისთვის საჭიროა ავტომობილის მარკა და მოდელი.",
+      VEHICLE_NOT_FOUND: "ამ მარკის ან მოდელისთვის Drom-ის იდენტიფიკატორები ჯერ არ არის გამართული.",
+      INSUFFICIENT_DATA: "საიმედო შეფასებისთვის Drom-ზე საკმარისი შესაბამისი განცხადება ვერ მოიძებნა.",
+      AUTH_ERROR: "Drom-მა ავტორიზაცია უარყო. შეამოწმეთ ავტორიზებული API-წვდომა და ინტეგრაციის პარამეტრები.",
+      PROVIDER_ERROR: "Drom-ის საბაზრო შეფასების სერვისი დროებით მიუწვდომელია. საბაჟო გამოთვლა კვლავ ხელმისაწვდომია.",
+      AVAILABLE: "საბაზრო შეფასება ხელმისაწვდომია.",
+    },
+  },
+} as const;
 
 function fmt(n: number) {
   return new Intl.NumberFormat("ru-RU", {
@@ -59,8 +107,11 @@ function buildContactUrl(message: string) {
 
 export function CalculatorResults({ result, vehicle }: Props) {
   const t = useTranslations("calculator.results");
+  const locale = useLocale();
+  const drom = dromCopy[locale as keyof typeof dromCopy] ?? dromCopy.en;
   const deal = result.deal_assessment;
   const market = result.market_comparison;
+  const isDrom = market?.source === "drom.ru";
   const hasSavings = result.savings_vs_rf_rub != null;
   const isProfit = hasSavings && result.savings_vs_rf_rub! > 0;
   const isAggregate = result.customs_payment_kind === "AGGREGATE_PAYMENT";
@@ -81,6 +132,10 @@ export function CalculatorResults({ result, vehicle }: Props) {
   const vatRatePercent = isAggregate && result.vat_rub > 0 && vatBaseRub > 0
     ? (result.vat_rub / vatBaseRub) * 100
     : null;
+
+  const marketStatusText = (status: MarketComparisonStatus) => (
+    isDrom ? drom.status[status] : t(`marketStatus.${status}`)
+  );
 
   return (
     <Card>
@@ -147,7 +202,7 @@ export function CalculatorResults({ result, vehicle }: Props) {
                   {market.similar_count != null && <Row label={t("marketSimilarCount")} value={String(market.similar_count)} />}
                   {market.average_mileage_km != null && <Row label={t("marketAverageMileage")} value={fmtKm(market.average_mileage_km)} />}
                   {market.min_price_rub != null && <Row label={t("marketMinPrice")} value={fmt(market.min_price_rub)} />}
-                  {market.median_price_rub != null && <Row label={t("marketMedianPrice")} value={fmt(market.median_price_rub)} />}
+                  {market.median_price_rub != null && <Row label={isDrom ? drom.medianPrice : t("marketMidpointPrice")} value={fmt(market.median_price_rub)} />}
                   {market.average_price_rub != null && <Row label={t("marketAveragePrice")} value={fmt(market.average_price_rub)} />}
                   {market.market_midpoint_rub != null && <Row label={t("marketMidpointPrice")} value={fmt(market.market_midpoint_rub)} />}
                   {market.max_price_rub != null && <Row label={t("marketMaxPrice")} value={fmt(market.max_price_rub)} />}
@@ -155,7 +210,7 @@ export function CalculatorResults({ result, vehicle }: Props) {
 
                 {market.reference_kind === "MEDIAN_LISTING_PRICE" ? (
                   <p className="text-xs text-muted-foreground">
-                    {market.is_mileage_adjusted ? t("marketDromMileageFiltered") : t("marketDromMedianReference")}
+                    {market.is_mileage_adjusted ? drom.mileageFiltered : drom.medianReference}
                   </p>
                 ) : (
                   <>
@@ -181,7 +236,7 @@ export function CalculatorResults({ result, vehicle }: Props) {
             ) : (
               <div className="flex gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                <span>{t(`marketStatus.${market.status}`)}</span>
+                <span>{marketStatusText(market.status)}</span>
               </div>
             )}
           </div>
@@ -220,7 +275,7 @@ export function CalculatorResults({ result, vehicle }: Props) {
                     result.deal_reference_source === "MANUAL"
                       ? t("dealReferenceManual")
                       : result.deal_reference_source === "DROM"
-                        ? t("dealReferenceDrom")
+                        ? drom.referenceSource
                         : t("dealReferenceAuto")
                   }
                 />
