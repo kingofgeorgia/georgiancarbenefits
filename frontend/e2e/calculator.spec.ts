@@ -167,7 +167,7 @@ test("Share Deal copies the current-origin URL and recovers from a create error"
   await calculate(page);
   await page.route("**/deals/", (route) => route.fulfill({ status: 503, json: { detail: "unavailable" } }));
   await shareButton(page).click();
-  await expect(page.getByText("Не удалось создать публичную ссылку", { exact: true })).toBeVisible();
+  await expect(page.getByText("Сервис временно недоступен. Попробуйте немного позже.", { exact: true })).toBeVisible();
   await expect(shareButton(page)).toBeEnabled();
   await page.unroute("**/deals/");
   const { created } = await share(page);
@@ -253,7 +253,7 @@ test("failed recalculation removes the previous result and can recover", async (
   await calculate(page);
   await page.route("**/calculator/total", (route) => route.fulfill({ status: 503, json: { detail: "unavailable" } }));
   await page.getByRole("button", { name: "Рассчитать", exact: true }).click();
-  await expect(page.getByText("Произошла ошибка. Попробуйте снова.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Сервис временно недоступен. Попробуйте немного позже.", { exact: true })).toBeVisible();
   await expect(shareButton(page)).toHaveCount(0);
   await page.unroute("**/calculator/total");
   await calculate(page);

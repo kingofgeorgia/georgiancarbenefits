@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.services.deal_score import DealRating, MarketPosition
 from app.services.personal_import_customs import CustomsPaymentKind, PowertrainKind
@@ -24,6 +24,38 @@ class CalculatorRequest(BaseModel):
     rf_analog_price_rub: float | None = None
     auto_market_comparison: bool = True
     note: str | None = None
+
+
+class CalculatorInput(CalculatorRequest):
+    # Tighten new input without changing immutable historical snapshot schemas.
+    model_config = ConfigDict(allow_inf_nan=False, extra="forbid")
+    car_price_usd: float = Field(gt=0, le=100_000_000)
+    engine_volume_cc: int = Field(ge=0, le=20_000)
+    car_year: int = Field(ge=1900, le=2100)
+    horse_power: float | None = Field(default=None, gt=0, le=5000)
+    electric_power_kw: float | None = Field(default=None, gt=0, le=5000)
+    mileage_km: int | None = Field(default=None, ge=0, le=10_000_000)
+    source_make: str | None = Field(default=None, max_length=80)
+    source_model: str | None = Field(default=None, max_length=120)
+    source_model_id: int | None = Field(default=None, gt=0, le=10_000_000)
+    logistics_cost_rub: float = Field(default=170_000, ge=0, le=100_000_000)
+    rf_analog_price_rub: float | None = Field(default=None, gt=0, le=100_000_000_000)
+    note: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def validate_current_vehicle(self):
+        if self.car_year > date.today().year:
+            raise ValueError("Vehicle year cannot be in the future")
+        if self.manufacture_date and self.manufacture_date > date.today():
+            raise ValueError("Manufacture date cannot be in the future")
+        if not self.is_personal_use:
+            raise ValueError("Only personal imports are supported")
+        if self.powertrain_kind in ("EV", "SERIES_HYBRID"):
+            if not self.electric_power_kw:
+                raise ValueError("Maximum 30-minute electric power is required")
+        elif not self.horse_power or not self.engine_volume_cc:
+            raise ValueError("Engine volume and horsepower are required")
+        return self
 
 
 class CurrencyRates(BaseModel):

@@ -7,6 +7,18 @@ export const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+export function apiErrorMessage(
+  error: unknown,
+  fallback: string,
+  messages: { rateLimited: string; payloadTooLarge: string; temporarilyUnavailable: string },
+): string {
+  if (!axios.isAxiosError(error)) return fallback;
+  if (error.response?.status === 429) return messages.rateLimited;
+  if (error.response?.status === 413) return messages.payloadTooLarge;
+  if (error.response?.status === 503) return messages.temporarilyUnavailable;
+  return fallback;
+}
+
 // Attach Bearer token from localStorage
 api.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {

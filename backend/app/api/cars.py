@@ -1,10 +1,10 @@
-import re
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.calculation.age import resolve_vehicle_age
+from app.core.public_urls import extract_myauto_car_id
 from app.schemas.cars import CarListing, CarModelOption, VinDecodeOut, VinDecodeRequest
 from app.services import currency, myauto, vin_decoder
 from app.services.personal_import_customs import calculatePersonalImportCustoms
@@ -13,20 +13,12 @@ router = APIRouter(prefix="/cars", tags=["cars"])
 
 
 class CarUrlRequest(BaseModel):
-    url: str
+    model_config = ConfigDict(extra="forbid")
+    url: str = Field(min_length=1, max_length=2048)
 
 
 def _extract_myauto_car_id(source: str) -> int | None:
-    value = source.strip()
-    if value.isdigit():
-        car_id = int(value)
-        return car_id if car_id > 0 else None
-
-    match = re.search(r"/pr/(\d+)(?:[/?#]|$)", value)
-    if not match:
-        return None
-    car_id = int(match.group(1))
-    return car_id if car_id > 0 else None
+    return extract_myauto_car_id(source)
 
 
 def _has_required_power(car: CarListing) -> bool:
@@ -37,14 +29,16 @@ def _has_required_power(car: CarListing) -> bool:
 
 @router.get("/search", response_model=list[CarListing])
 async def search(
-    make_id: int | None = Query(None),
-    model_id: int | None = Query(None),
-    year_from: int | None = Query(None),
-    year_to: int | None = Query(None),
-    price_usd_to: int | None = Query(None),
-    page: int = Query(1, ge=1),
-    logistics_cost_rub: float = Query(170_000.0),
+    make_id: int | None = Query(None, ge=1, le=10_000_000),
+    model_id: int | None = Query(None, ge=1, le=10_000_000),
+    year_from: int | None = Query(None, ge=1900, le=2100),
+    year_to: int | None = Query(None, ge=1900, le=2100),
+    price_usd_to: int | None = Query(None, gt=0, le=100_000_000),
+    page: int = Query(1, ge=1, le=100),
+    logistics_cost_rub: float = Query(170_000.0, ge=0, le=100_000_000, allow_inf_nan=False),
 ):
+    if year_from and year_to and year_from > year_to:
+        raise HTTPException(status_code=422, detail="Invalid year range")
     raw_list = await myauto.search_cars(
         make_id=make_id,
         model_id=model_id,
@@ -104,7 +98,7 @@ async def get_makes() -> list[Any]:
 
 
 @router.get("/models", response_model=list[CarModelOption])
-async def get_models(make_id: int = Query(..., ge=1)) -> list[CarModelOption]:
+async def get_models(make_id: int = Query(..., ge=1, le=10_000_000)) -> list[CarModelOption]:
     return [CarModelOption(**item) for item in await myauto.get_models(make_id)]
 
 

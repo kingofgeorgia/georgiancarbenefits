@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Link2, RotateCcw, ScanLine, X } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, apiErrorMessage } from "@/lib/api";
 import type { CalculatorRequest, CalculatorResult, CarListing, DealVehicleSnapshot, PowertrainKind, VinDecodeResult } from "@/lib/types";
 import { CalculatorResults } from "./CalculatorResults";
 import { CurrencyRatesWidget } from "./CurrencyRatesWidget";
@@ -53,6 +53,7 @@ const uiCopy = {
 export function Calculator() {
   const t = useTranslations("calculator");
   const tErr = useTranslations("errors");
+  const errorMessages = { rateLimited: tErr("rateLimited"), payloadTooLarge: tErr("payloadTooLarge"), temporarilyUnavailable: tErr("temporarilyUnavailable") };
   const locale = useLocale();
   const copy = uiCopy[locale as keyof typeof uiCopy] ?? uiCopy.en;
   const [carSource, setCarSource] = useState("");
@@ -135,7 +136,7 @@ export function Calculator() {
       setValue("powertrain_kind", car.powertrain_kind ?? "ICE");
       toast.success(t("urlLoaded", { make: car.make, model: car.model, year: car.year }));
     },
-    onError: () => toast.error(copy.myAutoError),
+    onError: (error) => toast.error(apiErrorMessage(error, copy.myAutoError, errorMessages)),
   });
 
   const vinMutation = useMutation({
@@ -177,20 +178,20 @@ export function Calculator() {
         toast.success(t("vinLoaded", { vehicle: [vehicle.make, vehicle.model, vehicle.model_year].filter(Boolean).join(" ") }));
       }
     },
-    onError: () => toast.error(t("vinDecodeError")),
+    onError: (error) => toast.error(apiErrorMessage(error, t("vinDecodeError"), errorMessages)),
   });
 
   const calcMutation = useMutation({
     mutationFn: (snapshot: CalculationSnapshot) => api.post<CalculatorResult>("/calculator/total", snapshot.request).then((r) => r.data),
     onMutate: () => setCalculation(null),
     onSuccess: (result, snapshot) => setCalculation({ ...snapshot, result }),
-    onError: () => toast.error(tErr("generic")),
+    onError: (error) => toast.error(apiErrorMessage(error, tErr("generic"), errorMessages)),
   });
 
   const saveMutation = useMutation({
     mutationFn: (data: CalculatorRequest) => api.post("/history/", data),
     onSuccess: () => toast.success(t("saved")),
-    onError: () => toast.error(tErr("generic")),
+    onError: (error) => toast.error(apiErrorMessage(error, tErr("generic"), errorMessages)),
   });
 
   function resetCalculator() {
@@ -254,6 +255,7 @@ export function Calculator() {
                 <Input
                   placeholder={copy.myAutoPlaceholder}
                   value={carSource}
+                  maxLength={2048}
                   onChange={(e) => setCarSource(e.target.value)}
                   className="flex-1"
                 />
@@ -358,7 +360,7 @@ export function Calculator() {
               )}
             </div>
 
-            <div><Label>{t("note")}</Label><Input {...register("note")} /></div>
+            <div><Label>{t("note")}</Label><Input maxLength={2000} {...register("note")} /></div>
             <div className="md:col-span-2 flex flex-wrap gap-3">
               <Button type="submit" disabled={calcMutation.isPending || urlMutation.isPending || vinMutation.isPending}>{calcMutation.isPending ? "..." : t("calculate")}</Button>
               <Button type="button" variant="outline" onClick={resetCalculator} disabled={resetDisabled}>

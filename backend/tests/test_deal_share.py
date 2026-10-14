@@ -1,7 +1,11 @@
 from datetime import date, datetime, timezone
+from types import SimpleNamespace
 
-from app.api.deals import _new_public_id
-from app.schemas.deals import DealShareCreate
+import pytest
+from pydantic import ValidationError
+
+from app.api.deals import _new_public_id, get_deal_share
+from app.schemas.deals import DealShareCreate, DealShareInput
 
 
 def _snapshot_payload() -> dict:
@@ -74,3 +78,49 @@ def test_public_deal_ids_are_short_and_non_sequential() -> None:
     assert len(values) == 20
     assert all(10 <= len(value) <= 20 for value in values)
     assert all(value.replace("-", "").replace("_", "").isalnum() for value in values)
+
+
+def test_new_share_uses_stricter_schema_without_changing_snapshot():
+    payload = _snapshot_payload()
+    parsed = DealShareInput.model_validate(payload)
+    assert parsed.result.total_cost_rub == 3922640
+    assert parsed.model_dump(mode="json") == DealShareCreate.model_validate(payload).model_dump(mode="json")
+
+
+@pytest.mark.parametrize("field,value", [("source_url", "javascript:alert(1)"), ("image_url", "http://127.0.0.1/secret"), ("vin", "INVALID"), ("price_usd", float("inf"))])
+def test_new_share_rejects_unsafe_vehicle_fields(field, value):
+    payload = _snapshot_payload()
+    payload["vehicle"][field] = value
+    with pytest.raises(ValidationError):
+        DealShareInput.model_validate(payload)
+
+
+def test_new_share_rejects_nested_non_finite_results():
+    payload = _snapshot_payload()
+    payload["result"]["rates"]["usd_to_rub"] = float("nan")
+    with pytest.raises(ValidationError, match="finite"):
+        DealShareInput.model_validate(payload)
+
+
+def test_old_share_keeps_financial_snapshot_but_drops_unsafe_links():
+    payload = _snapshot_payload()
+    payload["request"]["horse_power"] = None
+    payload["vehicle"]["image_url"] = "http://127.0.0.1/secret"
+    payload["vehicle"]["source_url"] = "javascript:alert(1)"
+    stored = SimpleNamespace(public_id="legacy_ID-1", schema_version="1", snapshot=payload, created_at=datetime.now(timezone.utc))
+
+    class DB:
+        def query(self, *args):
+            return self
+
+        def filter(self, *args):
+            return self
+
+        def first(self):
+            return stored
+
+    result = get_deal_share(stored.public_id, DB())
+    assert result.snapshot.result.total_cost_rub == 3922640
+    assert result.snapshot.vehicle.image_url is None
+    assert result.snapshot.vehicle.source_url is None
+    assert stored.snapshot["vehicle"]["source_url"] == "javascript:alert(1)"

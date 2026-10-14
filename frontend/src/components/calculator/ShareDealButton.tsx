@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useMutation } from "@tanstack/react-query";
 import { Copy, Share2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
+import { api, apiErrorMessage } from "@/lib/api";
 import type {
   CalculatorRequest,
   CalculatorResult,
@@ -30,6 +30,7 @@ const copy = {
 
 export function ShareDealButton({ request, result, vehicle }: Props) {
   const locale = useLocale();
+  const tErr = useTranslations("errors");
   const text = copy[locale as keyof typeof copy] ?? copy.en;
   const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
 
@@ -53,7 +54,9 @@ export function ShareDealButton({ request, result, vehicle }: Props) {
         toast.success(text.created);
       }
     },
-    onError: () => toast.error(text.error),
+    onError: (error) => toast.error(apiErrorMessage(error, text.error, {
+      rateLimited: tErr("rateLimited"), payloadTooLarge: tErr("payloadTooLarge"), temporarilyUnavailable: tErr("temporarilyUnavailable"),
+    })),
   });
 
   return (

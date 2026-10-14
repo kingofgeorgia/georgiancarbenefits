@@ -486,7 +486,7 @@ class DromMarketProvider:
                 mileage_km=mileage_km,
                 reason=str(exc),
             )
-        except (httpx.HTTPError, ValueError, MarketProviderError, json.JSONDecodeError) as exc:
+        except (httpx.HTTPError, ValueError, MarketProviderError, json.JSONDecodeError):
             return MarketComparison(
                 status=MarketComparisonStatus.PROVIDER_ERROR,
                 provider=_PROVIDER_NAME,
@@ -497,7 +497,7 @@ class DromMarketProvider:
                 model=model,
                 year=year,
                 mileage_km=mileage_km,
-                reason=str(exc),
+                reason="Market provider is temporarily unavailable",
             )
 
 
@@ -538,6 +538,11 @@ async def get_market_comparison(
     )
     if result.status == MarketComparisonStatus.AVAILABLE:
         async with _cache_lock:
+            expired = [key for key, (expires, _) in _cache.items() if expires <= monotonic_now]
+            for key in expired:
+                del _cache[key]
+            if cache_key not in _cache and len(_cache) >= 2048:
+                del _cache[next(iter(_cache))]
             _cache[cache_key] = (
                 monotonic_now + settings.drom_market_cache_ttl_seconds,
                 result,

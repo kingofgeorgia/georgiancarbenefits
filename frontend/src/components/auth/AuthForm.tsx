@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { api, apiErrorMessage } from "@/lib/api";
 import type { TokenResponse } from "@/lib/types";
 
 interface AuthFormProps {
@@ -41,8 +41,10 @@ export function AuthForm({ mode }: AuthFormProps) {
       const res = await api.post<TokenResponse>(endpoint, data);
       localStorage.setItem("access_token", res.data.access_token);
       router.push(`/${locale}`);
-    } catch {
-      toast.error(tErr("generic"));
+    } catch (error) {
+      toast.error(apiErrorMessage(error, tErr("generic"), {
+        rateLimited: tErr("rateLimited"), payloadTooLarge: tErr("payloadTooLarge"), temporarilyUnavailable: tErr("temporarilyUnavailable"),
+      }));
     }
   }
 
