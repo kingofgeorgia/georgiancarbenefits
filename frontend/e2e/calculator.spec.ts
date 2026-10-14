@@ -24,8 +24,10 @@ async function expectNoHorizontalOverflow(page: Page) {
 }
 
 async function screenshot(page: Page) {
-  await expect(page.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: 10000 });
+  await page.bringToFront();
   await page.evaluate(() => window.scrollTo(0, 0));
+  await page.mouse.move(0, 0);
+  await expect(page.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: 10000 });
   return page.screenshot({ fullPage: true });
 }
 
@@ -257,4 +259,12 @@ test("failed recalculation removes the previous result and can recover", async (
   await calculate(page);
   const request = (await share(page)).payload.request as CalculatorRequest;
   expect(request.source_make).toBe("BMW");
+  await page.getByRole("button", { name: "Сбросить расчёт" }).click();
+  await field(page, "car_price_usd").fill("30000");
+  await field(page, "engine_volume_cc").fill("1998");
+  await field(page, "car_year").fill(String(new Date().getFullYear() - 2));
+  await field(page, "horse_power").fill("150");
+  await calculate(page);
+  const href = await page.getByRole("link", { name: "Заказать через MileON", exact: true }).getAttribute("href");
+  expect(new URL(href!).searchParams.get("text")).toContain("Хочу заказать через MileON: автомобиль из расчёта.");
 });

@@ -115,7 +115,9 @@ export function CalculatorResults({ result, vehicle }: Props) {
   const hasSavings = result.savings_vs_rf_rub != null;
   const isProfit = hasSavings && result.savings_vs_rf_rub! > 0;
   const isAggregate = result.customs_payment_kind === "AGGREGATE_PAYMENT";
-  const vehicleLabel = [vehicle?.make, vehicle?.model, vehicle?.year].filter(Boolean).join(" ") || t("ctaGenericVehicle");
+  const vehicleLabel = vehicle?.make || vehicle?.model
+    ? [vehicle.make, vehicle.model, vehicle.year].filter(Boolean).join(" ")
+    : t("ctaGenericVehicle");
   const leadMessage = t("ctaMessage", {
     vehicle: vehicleLabel,
     total: fmt(result.total_cost_rub),
