@@ -21,6 +21,12 @@ _mans_cache: dict[int, str] = {}
 _models_cache: dict[int, dict[int, str]] = {}
 _models_directory_cache: dict[int, list[dict[str, Any]]] = {}
 _MYAUTO_IMAGE_BASE_URL = "https://static.my.ge/myauto/photos"
+
+
+class MyAutoUnavailableError(RuntimeError):
+    pass
+
+
 _FUEL_TYPE_LABELS: dict[int, str] = {
     1: "Gas",
     2: "Petrol",
@@ -224,6 +230,7 @@ async def search_cars(
     year_to: int | None = None,
     price_usd_to: int | None = None,
     page: int = 1,
+    raise_on_error: bool = False,
 ) -> list[dict[str, Any]]:
     params: dict[str, Any] = {"Page": page, "SortOrder": 1, "CurrencyID": 3}
     if make_id:
@@ -253,7 +260,9 @@ async def search_cars(
                 )
                 item["km"] = item.get("car_run_km")
             return items
-    except Exception:
+    except Exception as exc:
+        if raise_on_error:
+            raise MyAutoUnavailableError("MyAuto search is temporarily unavailable") from exc
         return []
 
 

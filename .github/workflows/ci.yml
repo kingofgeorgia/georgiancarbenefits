@@ -95,6 +95,8 @@ jobs:
       NEXT_PUBLIC_API_URL: http://localhost:8000
       DROM_API_ACCESS_CONFIRMED: "false"
       API_RATE_STORAGE_URI: async+redis://localhost:6379/0
+      API_RATE_LOOKUP_CLIENT: 60/minute;200/day
+      API_RATE_CLIENT: 240/minute
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

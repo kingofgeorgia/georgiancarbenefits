@@ -3,6 +3,52 @@ export interface TokenResponse {
   token_type: string;
 }
 
+export type BudgetMode = "GEORGIA_PURCHASE" | "RUSSIA_TOTAL";
+export type BudgetCurrency = "USD" | "RUB" | "GEL";
+export interface BudgetSearchRequest {
+  mode: BudgetMode;
+  budget_amount: number;
+  budget_currency: BudgetCurrency;
+  logistics_cost_rub?: number | null;
+  registration_cost_rub?: number | null;
+  make_id?: number | null;
+  year_from?: number | null;
+  year_to?: number | null;
+  mileage_km_to?: number | null;
+}
+export interface BudgetCandidate {
+  car: CarListing;
+  status: "WITHIN_BUDGET" | "NEEDS_DETAILS";
+  cost_in_budget_currency: number | null;
+  remaining_budget: number | null;
+  reason: "ELECTRIC_POWER" | "HORSEPOWER" | "ENGINE" | "MILEAGE" | "VEHICLE_DATA" | null;
+  breakdown: {
+    purchase_rub: number;
+    customs_fee_rub: number;
+    customs_duty_rub: number;
+    import_duty_rub: number;
+    excise_rub: number;
+    vat_rub: number;
+    recycling_fee_rub: number;
+    logistics_cost_rub: number;
+    registration_cost_rub: number;
+    total_rub: number;
+    minimum_total_rub: number;
+    calculation_rule_version: string;
+  } | null;
+}
+export interface BudgetSearchResult {
+  request: BudgetSearchRequest & { page: number };
+  matches: BudgetCandidate[];
+  needs_details: BudgetCandidate[];
+  checked_count: number;
+  skipped_count: number;
+  has_more: boolean;
+  next_page: number | null;
+  rates: CurrencyRates | null;
+  calculation_date: string;
+}
+
 export interface User {
   id: number;
   email: string;
