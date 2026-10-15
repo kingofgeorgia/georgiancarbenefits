@@ -96,7 +96,7 @@ test("provider failure is visible and retry restores results", async ({ page }) 
   await page.route("**/cars/budget", (route) => route.fulfill({ status: 503, json: { detail: { code: "MYAUTO_UNAVAILABLE" } } }));
   await page.locator('[name="budget_amount"]').fill("30000");
   await page.getByRole("button", { name: "Подобрать автомобили", exact: true }).click();
-  await expect(page.getByRole("alert")).toHaveText("Поиск MyAuto временно недоступен. Попробуйте позже.");
+  await expect(page.getByRole("region", { name: "Подбор по бюджету", exact: true }).getByRole("alert")).toHaveText("Поиск MyAuto временно недоступен. Попробуйте позже.");
   await expect(page.getByText("В проверенных объявлениях подходящих вариантов нет.")).toHaveCount(0);
   await page.unroute("**/cars/budget");
   await submit(page);
@@ -115,6 +115,14 @@ for (const copy of [
     await page.goto(`/${copy.locale}`);
     await page.getByRole("tab", { name: copy.title, exact: true }).click();
     await expect(page.getByRole("radio", { name: copy.mode })).toBeChecked();
+    await page.getByRole("radio").nth(1).check();
+    await expect(page.locator('[name="registration_cost_rub"]')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    if (copy.locale === "ru") {
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await info.attach("budget-russia-mobile-form", { body: await page.screenshot({ fullPage: true, animations: "disabled" }), contentType: "image/png" });
+    }
+    await page.getByRole("radio", { name: copy.mode }).check();
     await page.locator('[name="budget_amount"]').fill("25000");
     const response = page.waitForResponse((r) => r.url().endsWith("/cars/budget") && r.request().method() === "POST");
     await page.getByRole("button", { name: copy.search, exact: true }).click();
