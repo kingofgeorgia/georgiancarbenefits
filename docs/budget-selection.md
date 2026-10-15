@@ -59,4 +59,4 @@ failure and a forbidden Drom stub. Browser E2E adds both modes, mode changes,
 pagination, recovery, tab-state preservation and RU/EN/KA mobile layouts.
 External providers use deterministic E2E fixtures; no live-provider availability
 is implied by a passing CI run. The larger E2E suite uses a higher per-minute
-lookup allowance only in CI; production limits are unchanged.
+lookup and overall allowances only in CI; production limits are unchanged.

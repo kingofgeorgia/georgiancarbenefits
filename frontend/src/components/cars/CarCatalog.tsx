@@ -33,7 +33,7 @@ export function CarCatalog({ active = true }: { active?: boolean }) {
     queryKey: ["budget-search", submitted, searchId], initialPageParam: 1,
     queryFn: ({ pageParam, signal }) => api.post<BudgetSearchResult>("/cars/budget", { ...submitted, page: pageParam }, { signal }).then((r) => r.data),
     getNextPageParam: (last) => last.has_more ? last.next_page : undefined,
-    enabled: active && submitted !== null, retry: false,
+    enabled: submitted !== null, retry: false, staleTime: Infinity,
   });
 
   function clearResults() { setSubmitted(null); setFormError(null); }
