@@ -6,7 +6,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.calculation.age import resolve_vehicle_age
 from app.core.public_urls import extract_myauto_car_id
 from app.schemas.cars import CarListing, CarModelOption, VinDecodeOut, VinDecodeRequest
-from app.services import currency, myauto, vin_decoder
+from app.schemas.budget import BudgetSearchRequest, BudgetSearchResult
+from app.services import budget, currency, myauto, vin_decoder
 from app.services.personal_import_customs import calculatePersonalImportCustoms
 
 router = APIRouter(prefix="/cars", tags=["cars"])
@@ -95,6 +96,16 @@ async def search(
 @router.get("/makes")
 async def get_makes() -> list[Any]:
     return await myauto.get_makes()
+
+
+@router.post("/budget", response_model=BudgetSearchResult)
+async def budget_search(payload: BudgetSearchRequest):
+    try:
+        return await budget.search_by_budget(payload)
+    except currency.CurrencyUnavailableError as exc:
+        raise HTTPException(status_code=503, detail={"code": "RATES_UNAVAILABLE"}) from exc
+    except myauto.MyAutoUnavailableError as exc:
+        raise HTTPException(status_code=503, detail={"code": "MYAUTO_UNAVAILABLE"}) from exc
 
 
 @router.get("/models", response_model=list[CarModelOption])

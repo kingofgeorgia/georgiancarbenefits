@@ -29,7 +29,7 @@ async def listing(car_id: int):
     raw = fixtures.get(car_id)
     if raw is None:
         return None
-    return {**raw, "car_id": car_id, "prod_year": date.today().year - raw["age"],
+    return {**raw, "car_id": car_id, "man_id": 2 if car_id == 1002 else 1, "prod_year": date.today().year - raw["age"],
             "km": 140851 if car_id == 1004 else 25000}
 
 
@@ -50,6 +50,20 @@ async def vin(value: str):
     return vin_decoder.parse_vpic_result({"Results": [row]}, normalized)
 
 
+async def search(**kwargs):
+    if kwargs.get("page", 1) == 1:
+        return [await listing(car_id) for car_id in (1001, 1002, 1003, 1004)]
+    if kwargs.get("page") == 2:
+        return [{**await listing(1001), "car_id": 1005, "man_id": 2, "man_name": "Toyota", "model_name": "Camry", "price": 15000}]
+    return []
+
+
+async def makes():
+    return [{"man_id": 1, "title": "BMW"}, {"man_id": 2, "title": "Toyota"}]
+
+
 currency.get_rate_snapshot = rates
 myauto.get_car_by_id = listing
 vin_decoder.decode_vin = vin
+myauto.search_cars = search
+myauto.get_makes = makes
