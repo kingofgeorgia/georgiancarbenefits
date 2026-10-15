@@ -112,7 +112,7 @@ export function CarCatalog({ active = true }: { active?: boolean }) {
     <form onSubmit={submit} className="space-y-5 border-b pb-6">
       <fieldset className="min-w-0 space-y-2"><legend className="mb-2 text-sm font-medium">{t("scope")}</legend>
         <div className="grid grid-cols-2 overflow-hidden rounded-md border">
-          {(["GEORGIA_PURCHASE", "RUSSIA_TOTAL"] as const).map((value) => <label key={value} className={`flex min-h-20 min-w-0 cursor-pointer items-center gap-2 p-3 text-sm ${mode === value ? "bg-secondary font-semibold" : "bg-background"} ${value === "RUSSIA_TOTAL" ? "border-l" : ""}`}>
+          {(["GEORGIA_PURCHASE", "RUSSIA_TOTAL"] as const).map((value) => <label key={value} className={`flex min-h-24 min-w-0 cursor-pointer items-center gap-2 p-3 text-xs font-medium leading-5 ${mode === value ? "bg-secondary" : "bg-background"} ${value === "RUSSIA_TOTAL" ? "border-l" : ""}`}>
             <input type="radio" name="budget_mode" value={value} checked={mode === value} onChange={() => changeMode(value)} className="shrink-0 accent-black" />
             <span className="min-w-0 break-words">{value === "GEORGIA_PURCHASE" ? <Car aria-hidden className="mb-1 h-4 w-4" /> : <Truck aria-hidden className="mb-1 h-4 w-4" />}{t(value === "GEORGIA_PURCHASE" ? "georgia" : "russia")}</span>
           </label>)}
