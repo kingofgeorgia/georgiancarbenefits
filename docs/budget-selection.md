@@ -12,6 +12,12 @@ MyAuto listings. This flow never calls Drom or performs a market comparison.
   Registration is required even when the user deliberately chooses zero; no
   universal registration or transport quote is invented.
 
+The registration-cost input and result breakdown are labelled "Broker, documents
+and registration". This is the user's quoted sum, not an automatically calculated
+statutory charge. The input explicitly excludes delivery, customs payments and
+the recycling fee, which are separate components. This wording does not assert
+that every named service is required or set a standard price.
+
 Both modes support USD, RUB and GEL. Converted searches use one CBR snapshot per
 request and return its date/source/staleness. Costs are rounded upward to cents
 for budget eligibility. Tariff rules themselves are unchanged.

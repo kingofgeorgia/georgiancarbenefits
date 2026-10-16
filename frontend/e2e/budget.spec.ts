@@ -37,7 +37,9 @@ test("Russia total includes entered costs, separates missing power and shows bre
   await page.getByRole("radio", { name: "С доставкой и оформлением в России" }).check();
   await expect(page.locator('[name="budget_currency"]')).toHaveValue("RUB");
   await page.locator('[name="budget_amount"]').fill("4500000");
-  await page.locator('[name="registration_cost_rub"]').fill("30000");
+  const registration = page.getByLabel("Брокер, документы и регистрация, ₽", { exact: true });
+  await expect(registration).toHaveAccessibleDescription("Сумма по вашей смете, без доставки, таможенных платежей и утильсбора.");
+  await registration.fill("30000");
   const data = await submit(page);
   expect(data.matches.map((item) => item.car.car_id).sort()).toEqual([1001, 1002]);
   expect(data.needs_details.map((item) => item.car.car_id).sort()).toEqual([1003, 1004]);
@@ -53,7 +55,7 @@ test("Russia total includes entered costs, separates missing power and shows bre
   await expect(ev.getByText("Требуется уточнение", { exact: true })).toBeVisible();
   await expect(ev.getByText("Остаток бюджета", { exact: true })).toHaveCount(0);
   await page.getByTestId("budget-car-1001").locator("summary").click();
-  await expect(page.getByTestId("budget-car-1001").getByText("Оформление и прочие расходы", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("budget-car-1001").getByText("Брокер, документы и регистрация", { exact: true })).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, 0));
   await info.attach("budget-russia-desktop", { body: await page.screenshot({ fullPage: true, animations: "disabled" }), contentType: "image/png" });
 });
@@ -104,9 +106,9 @@ test("provider failure is visible and retry restores results", async ({ page }) 
 });
 
 for (const copy of [
-  { locale: "ru", title: "Подбор по бюджету", mode: "Только покупка в Грузии", search: "Подобрать автомобили" },
-  { locale: "en", title: "Budget car search", mode: "Purchase in Georgia only", search: "Find cars" },
-  { locale: "ka", title: "ბიუჯეტით შერჩევა", mode: "მხოლოდ შეძენა საქართველოში", search: "ავტომობილების მოძიება" },
+  { locale: "ru", title: "Подбор по бюджету", mode: "Только покупка в Грузии", search: "Подобрать автомобили", registration: "Брокер, документы и регистрация, ₽", help: "Сумма по вашей смете, без доставки, таможенных платежей и утильсбора." },
+  { locale: "en", title: "Budget car search", mode: "Purchase in Georgia only", search: "Find cars", registration: "Broker, documents and registration, RUB", help: "Your quoted costs, excluding delivery, customs payments and the recycling fee." },
+  { locale: "ka", title: "ბიუჯეტით შერჩევა", mode: "მხოლოდ შეძენა საქართველოში", search: "ავტომობილების მოძიება", registration: "ბროკერი, დოკუმენტები და რეგისტრაცია, RUB", help: "თანხა თქვენი ხარჯთაღრიცხვით, მიწოდების, საბაჟო გადასახადებისა და უტილიზაციის მოსაკრებლის გარეშე." },
 ]) {
   test(`${copy.locale} budget selection fits a 320px screen`, async ({ page }, info) => {
     const errors: string[] = [];
@@ -116,7 +118,10 @@ for (const copy of [
     await page.getByRole("tab", { name: copy.title, exact: true }).click();
     await expect(page.getByRole("radio", { name: copy.mode })).toBeChecked();
     await page.getByRole("radio").nth(1).check();
-    await expect(page.locator('[name="registration_cost_rub"]')).toBeVisible();
+    const registration = page.getByLabel(copy.registration, { exact: true });
+    await expect(registration).toBeVisible();
+    await expect(registration).toHaveAccessibleDescription(copy.help);
+    await expect(page.locator("#budget-registration-help")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     if (copy.locale === "ru") {
       await page.evaluate(() => window.scrollTo(0, 0));
