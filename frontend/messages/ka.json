@@ -21,7 +21,6 @@
     "manufactureDatePlaceholder": "თთ/წწწწ",
     "manufactureDateFormatError": "მიუთითეთ თვე და წელი ფორმატით თთ/წწწწ",
     "manufactureDateFutureError": "წარმოების თვე მომავალში ვერ იქნება",
-    "manufactureDateHint": "დღის მითითება საჭირო არ არის. ასაკის გამოსათვლელად არჩეული თვის პირველი დღე გამოიყენება.",
     "manufactureDateYearError": "წარმოების თვის წელი უნდა ემთხვეოდეს გამოშვების წელს",
     "horsePower": "სიმძლავრე (ცხ.ძ.)",
     "electricPowerKw": "ელექტროძრავების 30-წუთიანი სიმძლავრე (კვტ)",

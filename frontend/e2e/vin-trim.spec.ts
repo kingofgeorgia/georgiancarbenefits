@@ -40,10 +40,10 @@ test("failed VIN lookup does not leave the previous trim visible and can recover
   await expect(page.getByTestId("vin-trim-value")).toHaveText("EX / V6");
 });
 
-for (const [locale, button, placeholder] of [
-  ["ru", "Расшифровать VIN", "ММ/ГГГГ"],
-  ["en", "Decode VIN", "MM/YYYY"],
-  ["ka", "VIN-ის დეკოდირება", "თთ/წწწწ"],
+for (const [locale, button, placeholder, removedHint] of [
+  ["ru", "Расшифровать VIN", "ММ/ГГГГ", "День указывать не нужно. Для расчёта используется первое число выбранного месяца."],
+  ["en", "Decode VIN", "MM/YYYY", "No day is required. The first day of the selected month is used for the age calculation."],
+  ["ka", "VIN-ის დეკოდირება", "თთ/წწწწ", "დღის მითითება საჭირო არ არის. ასაკის გამოსათვლელად არჩეული თვის პირველი დღე გამოიყენება."],
 ]) {
   test(`${locale} VIN trim and numeric month fit mobile`, async ({ page }, info) => {
     const errors: string[] = [];
@@ -53,6 +53,10 @@ for (const [locale, button, placeholder] of [
     await decode(page, "1HGCM82633A004352", button);
     await expect(page.getByTestId("vin-trim-value")).toHaveText("EX / V6");
     const month = page.getByPlaceholder(placeholder, { exact: true });
+    await expect(month).toHaveAttribute("type", "text");
+    await expect(page.locator('input[type="month"]')).toHaveCount(0);
+    await expect(page.getByText(removedHint, { exact: true })).toHaveCount(0);
+    await expect(page.locator("#spec-make")).toHaveCount(0);
     await month.fill("05/2003");
     await expect(month).toHaveValue("05/2003");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

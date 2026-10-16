@@ -340,7 +340,7 @@ export function Calculator() {
             <div><Label>{t("carPriceUsd")}</Label><Input type="number" step="0.01" {...register("car_price_usd")} />{errors.car_price_usd && <p className="text-sm text-red-500">{errors.car_price_usd.message}</p>}</div>
             <div><Label>{t("engineVolume")}</Label><Input type="number" disabled={powertrainKind === "EV"} {...register("engine_volume_cc")} />{errors.engine_volume_cc && <p className="text-sm text-red-500">{errors.engine_volume_cc.message}</p>}</div>
             <div><Label>{t("carYear")}</Label><Input type="number" min={1990} max={currentYear} {...register("car_year")} />{errors.car_year && <p className="text-sm text-red-500">{errors.car_year.message}</p>}</div>
-            <div><Label htmlFor="manufacture-date">{t("manufactureDate")}</Label><Input id="manufacture-date" type="text" placeholder={t("manufactureDatePlaceholder")} maxLength={7} autoComplete="off" aria-invalid={!!errors.manufacture_date} {...register("manufacture_date")} /><p className="text-xs text-muted-foreground mt-1">{t("manufactureDateHint")}</p>{errors.manufacture_date && <p className="text-sm text-red-500">{errors.manufacture_date.message}</p>}</div>
+            <div><Label htmlFor="manufacture-date">{t("manufactureDate")}</Label><Input id="manufacture-date" type="text" placeholder={t("manufactureDatePlaceholder")} maxLength={7} autoComplete="off" aria-invalid={!!errors.manufacture_date} {...register("manufacture_date")} />{errors.manufacture_date && <p className="text-sm text-red-500">{errors.manufacture_date.message}</p>}</div>
             {usesElectricRegulatoryPower ? (
               <div>
                 <Label>{t("electricPowerKw")}</Label>

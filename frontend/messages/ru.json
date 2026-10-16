@@ -21,7 +21,6 @@
     "manufactureDatePlaceholder": "ММ/ГГГГ",
     "manufactureDateFormatError": "Укажите месяц и год в формате ММ/ГГГГ",
     "manufactureDateFutureError": "Месяц производства не может быть в будущем",
-    "manufactureDateHint": "День указывать не нужно. Для расчёта используется первое число выбранного месяца.",
     "manufactureDateYearError": "Год месяца производства должен совпадать с годом выпуска",
     "horsePower": "Мощность, л.с.",
     "electricPowerKw": "30-минутная мощность электромоторов, кВт",

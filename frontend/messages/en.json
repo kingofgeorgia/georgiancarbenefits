@@ -21,7 +21,6 @@
     "manufactureDatePlaceholder": "MM/YYYY",
     "manufactureDateFormatError": "Enter month and year as MM/YYYY",
     "manufactureDateFutureError": "Manufacture month cannot be in the future",
-    "manufactureDateHint": "No day is required. The first day of the selected month is used for the age calculation.",
     "manufactureDateYearError": "The manufacture month must use the same year as the model year",
     "horsePower": "Power (hp)",
     "electricPowerKw": "30-minute traction power (kW)",
