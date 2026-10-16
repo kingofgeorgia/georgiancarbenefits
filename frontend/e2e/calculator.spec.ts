@@ -294,7 +294,7 @@ test("numeric manufacture month rejects invalid format and a future month before
     if (request.url().endsWith("/calculator/total")) requests.push(request.url());
   });
   const year = await field(page, "car_year").inputValue();
-  for (const invalid of [`00/${year}`, `13/${year}`, `5/${year}`, `05-${year}`]) {
+  for (const invalid of [`00/${year}`, `13/${year}`, `5/${year}`, "05/20"]) {
     await field(page, "manufacture_date").fill(invalid);
     await page.getByRole("button", { name: "Рассчитать", exact: true }).click();
     await expect(page.getByText("Укажите месяц и год в формате ММ/ГГГГ", { exact: true })).toBeVisible();
