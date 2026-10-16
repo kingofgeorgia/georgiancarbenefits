@@ -14,9 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Link2, RotateCcw, ScanLine, X } from "lucide-react";
 import { api, apiErrorMessage } from "@/lib/api";
-import type { CalculatorRequest, CalculatorResult, CarListing, DealVehicleSnapshot, PowertrainKind, VehicleSpecification, VinDecodeResult } from "@/lib/types";
-import { VehicleSpecificationPicker } from "@/components/cars/VehicleSpecificationPicker";
-import { VehiclePowerReference } from "@/components/cars/VehiclePowerReference";
+import type { CalculatorRequest, CalculatorResult, CarListing, DealVehicleSnapshot, PowertrainKind, VinDecodeResult } from "@/lib/types";
+import { parseManufactureMonth } from "@/lib/manufacture-date";
 import { CalculatorResults } from "./CalculatorResults";
 import { CurrencyRatesWidget } from "./CurrencyRatesWidget";
 import { ShareDealButton } from "./ShareDealButton";
@@ -62,8 +61,6 @@ export function Calculator() {
   const [vin, setVin] = useState("");
   const [loadedCar, setLoadedCar] = useState<CarListing | null>(null);
   const [decodedVin, setDecodedVin] = useState<VinDecodeResult | null>(null);
-  const [catalogSelection, setCatalogSelection] = useState<{ entry: VehicleSpecification; year: number } | null>(null);
-  const [catalogResetKey, setCatalogResetKey] = useState(0);
   const [calculation, setCalculation] = useState<(CalculationSnapshot & { result: CalculatorResult }) | null>(null);
 
   const optionalPositiveNumber = z.preprocess(
@@ -96,15 +93,19 @@ export function Calculator() {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["horse_power"], message: tErr("required") });
     }
     if (data.manufacture_date) {
-      const parsed = new Date(`${data.manufacture_date}-01T00:00:00`);
-      if (Number.isNaN(parsed.getTime()) || parsed.getFullYear() !== data.car_year) {
+      const isoDate = parseManufactureMonth(data.manufacture_date);
+      if (!isoDate) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["manufacture_date"], message: t("manufactureDateFormatError") });
+      } else if (Number(isoDate.slice(0, 4)) !== data.car_year) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["manufacture_date"], message: t("manufactureDateYearError") });
+      } else if (new Date(`${isoDate}T00:00:00`) > new Date()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["manufacture_date"], message: t("manufactureDateFutureError") });
       }
     }
   });
 
   type FormData = z.infer<typeof schema>;
-  const { register, handleSubmit, formState: { errors }, reset, setValue, getValues, watch } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       logistics_cost_rub: 170000,
@@ -122,14 +123,6 @@ export function Calculator() {
   const powertrainKind = watch("powertrain_kind");
   const autoMarketComparison = watch("auto_market_comparison");
   const usesElectricRegulatoryPower = powertrainKind === "EV" || powertrainKind === "SERIES_HYBRID";
-  const reference = catalogSelection?.entry;
-  const appliedReference = reference && Number(watch("car_year")) === catalogSelection?.year
-    && powertrainKind === reference.powertrain_kind
-    && (reference.powertrain_kind !== "ICE" || Number(watch("horse_power")) === reference.horse_power)
-    && (reference.engine_cc === null
-      ? !Number(watch("engine_volume_cc")) || Math.abs(Number(watch("engine_volume_cc")) / 1000 - reference.engine_liters) <= 0.1
-      : Number(watch("engine_volume_cc")) === reference.engine_cc)
-    ? reference : null;
 
   const urlMutation = useMutation({
     mutationFn: (source: string) => api.post<CarListing>("/cars/from-url", { url: source }).then((r) => r.data),
@@ -138,7 +131,6 @@ export function Calculator() {
       setDecodedVin(null);
       setVin("");
       setLoadedCar(car);
-      setCatalogSelection(car.power_reference ? { entry: car.power_reference, year: car.year } : null);
       setValue("car_price_usd", car.price_usd);
       setValue("engine_volume_cc", car.powertrain_kind === "EV" ? 0 : car.engine_volume_cc);
       setValue("car_year", car.year);
@@ -154,6 +146,7 @@ export function Calculator() {
 
   const vinMutation = useMutation({
     mutationFn: (value: string) => api.post<VinDecodeResult>("/cars/from-vin", { vin: value }).then((r) => r.data),
+    onMutate: () => setDecodedVin(null),
     onSuccess: (vehicle) => {
       if (vehicle.status === "NOT_FOUND" || vehicle.status === "PROVIDER_ERROR") {
         setDecodedVin(null);
@@ -172,7 +165,6 @@ export function Calculator() {
         setValue("mileage_km", null);
       }
       setDecodedVin(vehicle);
-      setCatalogSelection(vehicle.power_reference && vehicle.model_year ? { entry: vehicle.power_reference, year: vehicle.model_year } : null);
       setVin(vehicle.vin);
       setValue("car_year", vehicle.model_year ?? 0);
       setValue("manufacture_date", null);
@@ -213,8 +205,6 @@ export function Calculator() {
     setVin("");
     setLoadedCar(null);
     setDecodedVin(null);
-    setCatalogSelection(null);
-    setCatalogResetKey((value) => value + 1);
     setCalculation(null);
     reset();
     urlMutation.reset();
@@ -223,40 +213,19 @@ export function Calculator() {
     saveMutation.reset();
   }
 
-  function applySpecification(entry: VehicleSpecification, year: number) {
-    const identity = (value: string | null | undefined) => (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const source = loadedCar ? { make: loadedCar.make, model: loadedCar.model, year: loadedCar.year, kind: loadedCar.powertrain_kind, engine: loadedCar.engine_volume_cc } : decodedVin ? { make: decodedVin.make, model: decodedVin.model, year: decodedVin.model_year, kind: decodedVin.powertrain_kind, engine: decodedVin.displacement_cc } : catalogSelection ? { make: catalogSelection.entry.make, model: catalogSelection.entry.model, year: catalogSelection.year, kind: catalogSelection.entry.powertrain_kind, engine: Number(getValues("engine_volume_cc")) || null } : null;
-    const sameVehicle = source && identity(source.make) === identity(entry.make) && identity(source.model) === identity(entry.model) && source.year === year
-      && source.kind === entry.powertrain_kind && source.engine != null && Math.abs(source.engine / 1000 - entry.engine_liters) <= 0.1;
-    if (source && !sameVehicle) {
-      setLoadedCar(null); setDecodedVin(null); setCarSource(""); setVin("");
-      setValue("car_price_usd", 0); setValue("mileage_km", null);
-    }
-    const currentEngine = Number(getValues("engine_volume_cc")) || 0;
-    const compatibleEngine = (!source || sameVehicle) && Math.abs(currentEngine / 1000 - entry.engine_liters) <= 0.1;
-    setValue("engine_volume_cc", entry.engine_cc ?? (compatibleEngine ? currentEngine : 0));
-    setValue("car_year", year);
-    setValue("manufacture_date", null);
-    setValue("powertrain_kind", entry.powertrain_kind);
-    setValue("horse_power", entry.powertrain_kind === "ICE" ? entry.horse_power : null);
-    setValue("electric_power_kw", null);
-    setCatalogSelection({ entry, year });
-    setCalculation(null);
-  }
-
   function onSubmit(data: FormData) {
     const electricRegulatoryPower = data.powertrain_kind === "EV" || data.powertrain_kind === "SERIES_HYBRID";
     const payload: CalculatorRequest = {
       ...data,
-      manufacture_date: data.manufacture_date ? `${data.manufacture_date}-01` : null,
+      manufacture_date: data.manufacture_date ? parseManufactureMonth(data.manufacture_date) : null,
       horse_power: electricRegulatoryPower ? null : data.horse_power ?? null,
       electric_power_kw: electricRegulatoryPower ? data.electric_power_kw ?? null : null,
       mileage_km: data.mileage_km ?? null,
       engine_volume_cc: data.powertrain_kind === "EV" ? 0 : data.engine_volume_cc,
       powertrain_kind: data.powertrain_kind as PowertrainKind,
       is_personal_use: true,
-      source_make: catalogSelection?.entry.make ?? loadedCar?.make ?? decodedVin?.make ?? null,
-      source_model: catalogSelection?.entry.model ?? loadedCar?.model ?? decodedVin?.model ?? null,
+      source_make: loadedCar?.make ?? decodedVin?.make ?? null,
+      source_model: loadedCar?.model ?? decodedVin?.model ?? null,
       source_model_id: loadedCar?.model_id ?? null,
       rf_analog_price_rub: data.auto_market_comparison ? data.rf_analog_price_rub ?? null : null,
       auto_market_comparison: data.auto_market_comparison,
@@ -309,7 +278,7 @@ export function Calculator() {
                 <div className="flex flex-wrap items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-md text-sm">
                   <span className="text-green-800 font-medium">{loadedCar.make} {loadedCar.model} {loadedCar.year}</span>
                   <Badge variant="outline">${loadedCar.price_usd.toLocaleString()}</Badge>
-                  {!catalogSelection && loadedCar.horse_power && (
+                  {loadedCar.horse_power != null && (
                     <Badge variant="outline">
                       {loadedCar.horse_power} hp{loadedCar.powertrain_kind === "EV" ? ` · ${t("referenceOnly")}` : ""}
                     </Badge>
@@ -332,10 +301,9 @@ export function Calculator() {
                 <div className={`space-y-2 rounded-md border p-2 text-sm ${decodedVin.status === "PARTIAL" ? "border-amber-200 bg-amber-50" : "border-blue-200 bg-blue-50"}`}>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{decodedVin.make} {decodedVin.model} {decodedVin.model_year}</span>
-                    {decodedVin.trim && <Badge variant="outline">{decodedVin.trim}</Badge>}
-                    {decodedVin.series && <Badge variant="outline">{decodedVin.series}</Badge>}
+                    {decodedVin.series && <Badge variant="outline">{t("vinSeries")}: {decodedVin.series}</Badge>}
                     {decodedVin.displacement_l != null && decodedVin.powertrain_kind !== "EV" && <Badge variant="outline">{decodedVin.displacement_l.toFixed(1)} L</Badge>}
-                    {!catalogSelection && decodedVin.horse_power != null && (
+                    {decodedVin.horse_power != null && (
                       <Badge variant="outline">
                         {Math.round(decodedVin.horse_power)} hp{decodedVin.powertrain_kind === "EV" ? ` · ${t("referenceOnly")}` : ""}
                       </Badge>
@@ -344,6 +312,19 @@ export function Calculator() {
                     <span className="text-xs text-muted-foreground ml-auto">{decodedVin.source}</span>
                     <button type="button" onClick={() => { setDecodedVin(null); setVin(""); }}><X className="h-4 w-4 text-gray-400 hover:text-gray-700" /></button>
                   </div>
+                  <dl data-testid="vin-trim" className="space-y-1 border-t pt-2">
+                    <div className="min-w-0">
+                      <dt className="text-xs text-muted-foreground">{t("vinTrim")}</dt>
+                      <dd className="break-words font-medium" data-testid="vin-trim-value">{[decodedVin.trim, decodedVin.trim_secondary].filter(Boolean).join(" / ") || t("vinTrimNotFound")}</dd>
+                    </div>
+                    {decodedVin.trim && (
+                      <div className="text-xs text-muted-foreground">
+                        <dt className="inline">{t("vinTrimSource")}: </dt>
+                        <dd className="inline">{decodedVin.trim_source === "VIN_PATTERN" ? t("vinTrimFromPattern") : "NHTSA vPIC"}</dd>
+                      </div>
+                    )}
+                  </dl>
+                  <p className="text-xs text-muted-foreground">{decodedVin.trim ? t("vinTrimHint") : t("vinTrimMissingHint")}</p>
                   {decodedVin.status === "PARTIAL" && (
                     <div className="flex gap-2 text-xs text-amber-900">
                       <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -353,18 +334,13 @@ export function Calculator() {
                 </div>
               )}
             </div>
-            <VehicleSpecificationPicker key={`${catalogResetKey}:${loadedCar?.car_id ?? decodedVin?.vin ?? "manual"}`} disabled={resetDisabled} onApply={applySpecification} />
-            {appliedReference && <div data-testid="applied-specification"><VehiclePowerReference entry={appliedReference} /></div>}
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} onChange={(event) => {
-            if (catalogSelection && ["horse_power", "electric_power_kw", "engine_volume_cc", "car_year", "powertrain_kind"].includes(event.target.name)) setCalculation(null);
-            if (["car_year", "powertrain_kind"].includes(event.target.name)) setCatalogSelection(null);
-          }} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div><Label>{t("carPriceUsd")}</Label><Input type="number" step="0.01" {...register("car_price_usd")} />{errors.car_price_usd && <p className="text-sm text-red-500">{errors.car_price_usd.message}</p>}</div>
             <div><Label>{t("engineVolume")}</Label><Input type="number" disabled={powertrainKind === "EV"} {...register("engine_volume_cc")} />{errors.engine_volume_cc && <p className="text-sm text-red-500">{errors.engine_volume_cc.message}</p>}</div>
             <div><Label>{t("carYear")}</Label><Input type="number" min={1990} max={currentYear} {...register("car_year")} />{errors.car_year && <p className="text-sm text-red-500">{errors.car_year.message}</p>}</div>
-            <div><Label>{t("manufactureDate")}</Label><Input type="month" {...register("manufacture_date")} /><p className="text-xs text-muted-foreground mt-1">{t("manufactureDateHint")}</p>{errors.manufacture_date && <p className="text-sm text-red-500">{errors.manufacture_date.message}</p>}</div>
+            <div><Label htmlFor="manufacture-date">{t("manufactureDate")}</Label><Input id="manufacture-date" type="text" placeholder={t("manufactureDatePlaceholder")} maxLength={7} autoComplete="off" aria-invalid={!!errors.manufacture_date} {...register("manufacture_date")} /><p className="text-xs text-muted-foreground mt-1">{t("manufactureDateHint")}</p>{errors.manufacture_date && <p className="text-sm text-red-500">{errors.manufacture_date.message}</p>}</div>
             {usesElectricRegulatoryPower ? (
               <div>
                 <Label>{t("electricPowerKw")}</Label>

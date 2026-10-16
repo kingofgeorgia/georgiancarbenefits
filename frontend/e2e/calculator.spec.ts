@@ -238,7 +238,7 @@ test("browser errors, EV missing power, date mismatch and disabled Drom are visi
   await page.getByRole("button", { name: "Рассчитать", exact: true }).click();
   await expect(page.getByText("Обязательное поле", { exact: true })).toBeVisible();
   await field(page, "electric_power_kw").fill("153");
-  await field(page, "manufacture_date").fill(`${new Date().getFullYear() - 1}-01`);
+  await field(page, "manufacture_date").fill(`01/${new Date().getFullYear() - 1}`);
   await page.getByRole("button", { name: "Рассчитать", exact: true }).click();
   await expect(page.getByText("Год месяца производства должен совпадать с годом выпуска", { exact: true })).toBeVisible();
   await field(page, "manufacture_date").fill("");
@@ -267,4 +267,43 @@ test("failed recalculation removes the previous result and can recover", async (
   await calculate(page);
   const href = await page.getByRole("link", { name: "Заказать через MileON", exact: true }).getAttribute("href");
   expect(new URL(href!).searchParams.get("text")).toContain("Хочу заказать через MileON: автомобиль из расчёта.");
+});
+
+test("numeric manufacture month survives calculation and a fresh public deal", async ({ page, context }, info) => {
+  await load(page, "1001");
+  const year = await field(page, "car_year").inputValue();
+  await field(page, "manufacture_date").fill(`05/${year}`);
+  const result = await calculate(page);
+  expect(result.manufacture_date_used).toBe(`${year}-05-01`);
+  expect(result.age_is_estimated).toBe(false);
+  await expect(page.getByText(`Месяц производства в расчёте: 05/${year}`, { exact: true })).toBeVisible();
+  const { created, payload } = await share(page);
+  expect(payload.request.manufacture_date).toBe(`${year}-05-01`);
+  const fresh = await context.browser()!.newContext();
+  const publicPage = await fresh.newPage();
+  await publicPage.goto(`${new URL(page.url()).origin}/ru/deal/${created.public_id}`);
+  await expect(publicPage.getByText(`Месяц производства в расчёте: 05/${year}`, { exact: true })).toBeVisible();
+  await info.attach("numeric-manufacture-date-result", { body: await screenshot(publicPage), contentType: "image/png" });
+  await fresh.close();
+});
+
+test("numeric manufacture month rejects invalid format and a future month before API submission", async ({ page }) => {
+  await load(page, "1001");
+  const requests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().endsWith("/calculator/total")) requests.push(request.url());
+  });
+  const year = await field(page, "car_year").inputValue();
+  for (const invalid of [`00/${year}`, `13/${year}`, `5/${year}`, `05-${year}`]) {
+    await field(page, "manufacture_date").fill(invalid);
+    await page.getByRole("button", { name: "Рассчитать", exact: true }).click();
+    await expect(page.getByText("Укажите месяц и год в формате ММ/ГГГГ", { exact: true })).toBeVisible();
+  }
+  if (new Date().getMonth() < 11) {
+    await field(page, "car_year").fill(String(new Date().getFullYear()));
+    await field(page, "manufacture_date").fill(`12/${new Date().getFullYear()}`);
+    await page.getByRole("button", { name: "Рассчитать", exact: true }).click();
+    await expect(page.getByText("Месяц производства не может быть в будущем", { exact: true })).toBeVisible();
+  }
+  expect(requests).toEqual([]);
 });

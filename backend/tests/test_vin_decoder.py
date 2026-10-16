@@ -51,6 +51,7 @@ def test_vpic_parses_complete_ice_vehicle_and_extra_metadata() -> None:
     assert result.model == "X5"
     assert result.model_year == 2024
     assert result.trim == "xDrive40i"
+    assert result.trim_source == "NHTSA_VPIC"
     assert result.series == "G05"
     assert result.displacement_cc == 2998
     assert result.horse_power == 375.0
@@ -197,6 +198,7 @@ def test_user_tesla_model_y_vin_is_normalized_and_identified_as_performance() ->
     assert result.model == "Model Y"
     assert result.model_year == 2023
     assert result.trim == "Performance AWD"
+    assert result.trim_source == "VIN_PATTERN"
     assert result.drive_type == "AWD/All-Wheel Drive"
     assert result.powertrain_kind == "EV"
     assert result.electric_power_kw is None
@@ -233,3 +235,65 @@ def test_vpic_empty_decode_is_not_found() -> None:
 
     assert result.status == VinDecodeStatus.NOT_FOUND
     assert result.error_code == "7"
+
+
+@pytest.mark.parametrize("primary,secondary,expected,extra", [
+    (" EX ", " V6 ", "EX", "V6"),
+    ("", "Limited", "Limited", None),
+    ("N/A", "Sport", "Sport", None),
+    ("LE", "le", "LE", None),
+    (None, None, None, None),
+    ("Unknown", "Not Applicable", None, None),
+    ("not available", "not provided", None, None),
+])
+def test_trim_fields_preserve_provider_data_without_guessing(primary, secondary, expected, extra):
+    result = parse_vpic_result({"Results": [{
+        "Make": "HONDA", "Model": "Accord", "ModelYear": "2003",
+        "Trim": primary, "Trim2": secondary, "Series": "EX-L",
+    }]}, "1HGCM82633A004352")
+    assert result.trim == expected
+    assert result.trim_secondary == extra
+    assert result.trim_source == ("NHTSA_VPIC" if expected else None)
+    assert result.series == "EX-L"
+
+
+def test_provider_trim_takes_precedence_over_known_vin_pattern():
+    result = parse_vpic_result({"Results": [{
+        "Make": "TESLA", "Model": "Model Y", "ModelYear": "2023", "Trim2": "Provider version",
+    }]}, "7SAYGDEF4PF665873")
+    assert result.trim == "Provider version"
+    assert result.trim_source == "NHTSA_VPIC"
+
+
+def test_unknown_vin_pattern_does_not_invent_trim():
+    result = parse_vpic_result({"Results": [{
+        "Make": "TESLA", "Model": "Model Y", "ModelYear": "2023",
+    }]}, "7SAYGDEE4PF665873")
+    assert result.trim is None
+    assert result.trim_source is None
+
+
+def test_vin_endpoint_includes_trim_details_and_validates_vin(monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api import cars
+    from app.services import vin_decoder
+
+    async def decode(value):
+        if not validate_vin(value):
+            raise ValueError("Invalid VIN")
+        return parse_vpic_result({"Results": [{
+            "Make": "HONDA", "Model": "Accord", "Trim": "EX", "Trim2": "V6",
+        }]}, value)
+
+    monkeypatch.setattr(vin_decoder, "decode_vin", decode)
+    app = FastAPI()
+    app.include_router(cars.router)
+    with TestClient(app) as client:
+        response = client.post("/cars/from-vin", json={"vin": "1HGCM82633A004352"})
+        assert response.status_code == 200
+        assert response.json()["trim"] == "EX"
+        assert response.json()["trim_secondary"] == "V6"
+        assert response.json()["trim_source"] == "NHTSA_VPIC"
+        assert client.post("/cars/from-vin", json={"vin": "INVALID"}).status_code == 422

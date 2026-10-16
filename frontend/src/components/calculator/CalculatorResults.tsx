@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import type { CalculatorResult, DealVehicleSnapshot, DealRating, MarketComparisonStatus } from "@/lib/types";
+import { formatManufactureMonth } from "@/lib/manufacture-date";
 import {
   AlertTriangle,
   BarChart3,
@@ -78,11 +79,6 @@ function fmtNumber(n: number, maximumFractionDigits = 2) {
 
 function fmtKm(n: number) {
   return `${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(n)} km`;
-}
-
-function fmtMonth(value: string) {
-  const [year, month] = value.split("-");
-  return year && month ? `${month}.${year}` : value;
 }
 
 interface Props {
@@ -333,7 +329,7 @@ export function CalculatorResults({ result, vehicle }: Props) {
             {t("rateSource")}: {result.rates.source}, {result.rates.effective_date}
             {result.rates.is_stale ? ` · ${t("staleRate")}` : ""}
           </div>
-          <div>{t("manufactureDateUsed")}: {fmtMonth(result.manufacture_date_used)}</div>
+          <div>{t("manufactureDateUsed")}: {formatManufactureMonth(result.manufacture_date_used)}</div>
           <div>{t("ruleVersion")}: {result.calculation_rule_version}</div>
         </div>
       </CardContent>

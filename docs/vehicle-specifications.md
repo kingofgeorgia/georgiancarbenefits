@@ -1,8 +1,9 @@
 # Own Modification Catalog
 
 The calculator can use a local, reviewed specification catalog without a paid
-vehicle-data subscription. Open the modification catalog, select make, model,
-year and modification/market, inspect the source, then apply the record.
+vehicle-data subscription. The public catalog picker and source-reference panels
+are currently hidden at the product owner's request. The data, API and strict
+automatic enrichment remain available internally; no records were deleted.
 This is a technical reference, not proof of the specification of a particular VIN
 or a binding Russian tax assessment.
 
@@ -53,7 +54,7 @@ MyAuto market is never inferred from a production country or a numeric model ID.
 vPIC uses the US-market catalog only and must identify an ICE powertrain.
 Existing nonempty provider horsepower is not overwritten.
 
-The user may explicitly choose a reference even when automatic matching is not
+The retained picker implementation allows choosing a reference even when automatic matching is not
 possible. Applying a different make/model/year clears the old listing/VIN, price,
 mileage and photo. Choosing a record with unknown exact cc cannot keep a
 contradictory engine size. Applying a modification or editing catalog-populated
@@ -65,6 +66,7 @@ edits invalidate the selected catalog identity. Reset also clears catalog contro
 System/peak hybrid and EV power never fills calculator engine horsepower or
 regulatory electric power. The initial hybrid record is visibly reference-only;
 it cannot complete a tax calculation by itself. No 30-minute values are invented.
+The picker and reference panels described above are not mounted on the site.
 
 `GET /cars/specifications` returns local records, with optional exact make/model
 and year filters. It is protected by existing lookup quotas, performs no upstream
@@ -82,7 +84,7 @@ before bulk ingestion; do not copy a proprietary commercial database.
 Run catalog validation and matching tests, the full backend suite, frontend
 lint/typecheck/build and browser E2E. Tests reject duplicate IDs, invalid/future
 verification dates, nonfinite power, bad source URLs, conflicting matches and
-incomplete identities. Browser tests cover manual selection, unit conversion,
-missing exact cc, different-car invalidation, hybrid safety, error/retry and
-RU/EN/KA at 320 px. External providers remain deterministic fixtures in E2E;
+incomplete identities. Browser tests currently verify that the catalog is absent
+in RU/EN/KA and that the page makes no catalog request. Backend tests retain unit
+conversion, exact matching and hybrid safety coverage. External providers remain deterministic fixtures in E2E;
 the catalog itself and API/calculation are real.

@@ -117,6 +117,8 @@ export interface VinDecodeResult {
   model?: string | null;
   model_year?: number | null;
   trim?: string | null;
+  trim_secondary?: string | null;
+  trim_source?: "NHTSA_VPIC" | "VIN_PATTERN" | null;
   series?: string | null;
   manufacturer?: string | null;
   body_class?: string | null;
