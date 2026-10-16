@@ -312,6 +312,7 @@ def parse_car(raw: dict[str, Any]) -> CarListing:
         engine_volume_cc=0 if powertrain_kind == "EV" else engine_cc,
         horse_power=horse_power,
         horse_power_source=horse_power_source,
+        power_reference=spec.entry if spec and listing_hp is None else None,
         electric_power_kw=electric_power_kw,
         electric_power_kw_source=electric_power_kw_source,
         fuel_type=_resolve_fuel_type(raw),

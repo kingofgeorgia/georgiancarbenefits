@@ -82,6 +82,34 @@ export type MarketReferenceKind =
   | "MEDIAN_LISTING_PRICE";
 export type VinDecodeStatus = "COMPLETE" | "PARTIAL" | "NOT_FOUND" | "PROVIDER_ERROR";
 
+export interface VehicleSpecification {
+  id: string;
+  make: string;
+  model: string;
+  modification: string;
+  year_from: number;
+  year_to: number;
+  market: "US" | "EU";
+  fuel: "PETROL" | "DIESEL" | "HYBRID" | "ELECTRIC";
+  powertrain_kind: PowertrainKind;
+  drive: "FWD" | "RWD" | "AWD";
+  engine_liters: number;
+  engine_cc: number | null;
+  power_value: number;
+  power_unit: "PS" | "SAE_HP" | "KW";
+  power_basis: "ENGINE_NET" | "SYSTEM_MAX" | "ELECTRIC_PEAK";
+  horse_power: number;
+  source_title: string;
+  source_url: string;
+  engine_source_url: string | null;
+  verified_on: string;
+}
+
+export interface VehicleSpecificationCatalog {
+  version: string;
+  items: VehicleSpecification[];
+}
+
 export interface VinDecodeResult {
   status: VinDecodeStatus;
   vin: string;
@@ -101,6 +129,7 @@ export interface VinDecodeResult {
   engine_kw?: number | null;
   horse_power?: number | null;
   horse_power_source?: string | null;
+  power_reference?: VehicleSpecification | null;
   electric_power_kw?: number | null;
   electric_power_kw_source?: string | null;
   drive_type?: string | null;
@@ -257,6 +286,7 @@ export interface CarListing {
   engine_volume_cc: number;
   horse_power?: number | null;
   horse_power_source?: string | null;
+  power_reference?: VehicleSpecification | null;
   electric_power_kw?: number | null;
   electric_power_kw_source?: string | null;
   fuel_type?: string | null;

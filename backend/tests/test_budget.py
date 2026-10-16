@@ -99,6 +99,18 @@ def test_missing_ev_or_ice_power_is_never_reported_as_within_import_budget(setup
     assert all(item.remaining_budget is None and item.cost_in_budget_currency is None for item in result.needs_details)
 
 
+def test_verified_catalog_enriches_budget_only_with_strict_identity(setup):
+    rows, _ = setup
+    raw = listing(man_name="Toyota", model_name="RAV4", prod_year=2024, engine_volume=2487,
+                  horse_power=None, trim_name="LE", market="US", drive_type="FWD")
+    rows[:] = [raw, {**raw, "car_id": 2, "market": None}]
+    result = asyncio.run(budget.search_by_budget(russia()))
+    assert len(result.matches) == 1
+    assert result.matches[0].car.power_reference.id == "toyota-rav4-2024-us-le-25-fwd"
+    assert result.matches[0].car.horse_power == 205.82
+    assert result.needs_details[0].car.car_id == 2 and result.needs_details[0].reason == "HORSEPOWER"
+
+
 def test_ev_uses_regulatory_power_when_available(setup, monkeypatch):
     car = myauto.parse_car(listing(fuel_type_id=7, engine_volume=0))
     car.electric_power_kw = 153

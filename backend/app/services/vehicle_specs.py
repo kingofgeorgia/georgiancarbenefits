@@ -1,153 +1,94 @@
-from __future__ import annotations
+"""Reviewed, source-linked modifications. Missing identity never means a match."""
 
+import re
+import unicodedata
 from dataclasses import dataclass
-import json
 from pathlib import Path
 from typing import Any
 
-from app.services.personal_import_customs import PowertrainKind
-
-
-@dataclass(frozen=True)
-class VehicleSpecEntry:
-    make: str
-    model: str
-    year_from: int
-    year_to: int
-    horse_power: int
-    make_aliases: tuple[str, ...] = ()
-    model_aliases: tuple[str, ...] = ()
-    man_id: int | None = None
-    model_id: int | None = None
-    engine_cc: int | None = None
-    fuel_type_id: int | None = None
-    powertrain_kind: PowertrainKind | None = None
+from app.schemas.vehicle_specs import VehicleSpecification, VehicleSpecificationCatalog
 
 
 @dataclass(frozen=True)
 class ResolvedVehicleSpec:
-    horse_power: int
-    powertrain_kind: PowertrainKind | None
-    source: str
+    entry: VehicleSpecification
+    source: str = "spec_catalog"
+
+    @property
+    def horse_power(self) -> float:
+        return self.entry.horse_power
+
+    @property
+    def powertrain_kind(self):
+        return self.entry.powertrain_kind
 
 
 _DATA_FILE = Path(__file__).resolve().parent.parent / "data" / "vehicle_specs.json"
+CATALOG = VehicleSpecificationCatalog.model_validate_json(_DATA_FILE.read_text(encoding="utf-8"))
 
 
-def _normalize_text(value: Any) -> str:
-    return " ".join(str(value or "").lower().split())
+def _normalize(value: Any) -> str:
+    text = unicodedata.normalize("NFKD", str(value or "").casefold())
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
 
 
-def _load_vehicle_specs() -> tuple[VehicleSpecEntry, ...]:
-    raw_entries = json.loads(_DATA_FILE.read_text(encoding="utf-8"))
-    return tuple(
-        VehicleSpecEntry(
-            make=str(entry["make"]),
-            model=str(entry["model"]),
-            make_aliases=tuple(str(item).lower() for item in entry.get("make_aliases", [])),
-            model_aliases=tuple(str(item).lower() for item in entry.get("model_aliases", [])),
-            man_id=int(entry["man_id"]) if entry.get("man_id") is not None else None,
-            model_id=int(entry["model_id"]) if entry.get("model_id") is not None else None,
-            year_from=int(entry["year_from"]),
-            year_to=int(entry["year_to"]),
-            engine_cc=int(entry["engine_cc"]) if entry.get("engine_cc") is not None else None,
-            fuel_type_id=int(entry["fuel_type_id"]) if entry.get("fuel_type_id") is not None else None,
-            horse_power=int(entry["horse_power"]),
-            powertrain_kind=entry.get("powertrain_kind"),
-        )
-        for entry in raw_entries
-    )
+def _contains(text: str, token: str) -> bool:
+    return f" {_normalize(token)} " in f" {_normalize(text)} "
 
 
-_VEHICLE_SPECS = _load_vehicle_specs()
+def find_specifications(*, make: str | None = None, model: str | None = None, year: int | None = None) -> list[VehicleSpecification]:
+    return [entry for entry in CATALOG.items
+            if (not make or _normalize(entry.make) == _normalize(make))
+            and (not model or _normalize(entry.model) == _normalize(model))
+            and (year is None or entry.year_from <= year <= entry.year_to)]
 
 
-def resolve_vehicle_spec(raw: dict[str, Any]) -> ResolvedVehicleSpec | None:
-    man_id = int(raw.get("man_id", 0) or 0)
-    model_id = int(raw.get("model_id", 0) or 0)
-    prod_year = int(raw.get("prod_year", 0) or 0)
-    engine_cc = int(raw.get("engine_volume", 0) or 0)
-    fuel_type_id = int(raw.get("fuel_type_id", 0) or 0)
-    if not prod_year:
-        return None
-
-    make_haystack = " ".join(_normalize_text(raw.get(field)) for field in ("man_name", "make")).strip()
-    model_haystack = " ".join(
-        _normalize_text(raw.get(field))
-        for field in ("model_name", "car_model", "trim_name", "car_desc")
-    ).strip()
-
-    best_match: VehicleSpecEntry | None = None
-    best_score = -1
-    for entry in _VEHICLE_SPECS:
-        if not entry.year_from <= prod_year <= entry.year_to:
-            continue
-        score = 0
-        if entry.man_id is not None and man_id:
-            if entry.man_id != man_id:
-                continue
-            score += 6
-        if entry.model_id is not None and model_id:
-            if entry.model_id != model_id:
-                continue
-            score += 6
-        if entry.engine_cc is not None and engine_cc:
-            if entry.engine_cc != engine_cc:
-                continue
-            score += 3
-        if entry.fuel_type_id is not None and fuel_type_id:
-            if entry.fuel_type_id != fuel_type_id:
-                continue
-            score += 3
-        make_tokens = {entry.make.lower(), *entry.make_aliases}
-        if make_haystack and any(token in make_haystack for token in make_tokens):
-            score += 4
-        elif entry.man_id is None:
-            continue
-        model_tokens = {entry.model.lower(), *entry.model_aliases}
-        model_hits = sum(1 for alias in model_tokens if alias and alias in model_haystack)
-        if model_hits:
-            score += model_hits
-        elif entry.model_id is None:
-            continue
-        if score > best_score:
-            best_match = entry
-            best_score = score
-
-    if best_match is None:
-        return None
-    return ResolvedVehicleSpec(
-        horse_power=best_match.horse_power,
-        powertrain_kind=best_match.powertrain_kind,
-        source="spec_catalog",
-    )
+def _drive(value: str | None) -> str | None:
+    normalized = _normalize(value)
+    return {
+        "fwd": "FWD", "front wheel drive": "FWD", "fwd front wheel drive": "FWD",
+        "rwd": "RWD", "rear wheel drive": "RWD", "rwd rear wheel drive": "RWD",
+        "awd": "AWD", "4wd": "AWD", "4x4": "AWD",
+        "awd all wheel drive": "AWD", "all wheel drive": "AWD",
+        "4wd 4 wheel drive 4x4": "AWD",
+    }.get(normalized)
 
 
 def resolve_vehicle_spec_by_identity(
-    *,
-    make: str | None,
-    model: str | None,
-    year: int | None,
-    engine_cc: int | None = None,
-    trim: str | None = None,
-    series: str | None = None,
+    *, make: str | None, model: str | None, year: int | None,
+    engine_cc: int | None = None, trim: str | None = None, series: str | None = None,
+    market: str | None = None, fuel: str | None = None, drive: str | None = None,
 ) -> ResolvedVehicleSpec | None:
-    """Resolve a curated spec when a provider only gives normalized identity fields.
-
-    VIN providers often return make/model/year/engine but omit engine power. Reuse the
-    same curated catalog matcher instead of duplicating matching rules in each provider.
-    """
-    if not year or not make or not model:
+    if not all((make, model, year, engine_cc, market, fuel, drive)):
         return None
-    return resolve_vehicle_spec(
-        {
-            "make": make,
-            "man_name": make,
-            "model_name": model,
-            "car_model": model,
-            "trim_name": trim,
-            "car_desc": " ".join(part for part in (series, trim) if part),
-            "prod_year": year,
-            "engine_volume": engine_cc or 0,
-        }
+    fuel_kind = {"gasoline": "PETROL", "petrol": "PETROL", "diesel": "DIESEL"}.get(_normalize(fuel))
+    candidates = []
+    for entry in find_specifications(make=make, model=model, year=year):
+        if entry.powertrain_kind != "ICE" or entry.power_basis != "ENGINE_NET":
+            continue
+        if entry.engine_cc is None or entry.engine_cc != engine_cc:
+            continue
+        if entry.market != str(market).upper() or entry.fuel != fuel_kind or entry.drive != _drive(drive):
+            continue
+        identity = " ".join(part for part in (trim, series) if part)
+        if any(_contains(identity, alias) for alias in entry.trim_aliases):
+            candidates.append(entry)
+    # A growing catalogue must not resolve conflicts by row order or score.
+    return ResolvedVehicleSpec(candidates[0]) if len(candidates) == 1 else None
+
+
+def resolve_vehicle_spec(raw: dict[str, Any]) -> ResolvedVehicleSpec | None:
+    try:
+        year = int(raw.get("prod_year") or 0)
+        engine_cc = int(raw.get("engine_volume") or 0)
+        fuel_id = int(raw.get("fuel_type_id") or 0)
+    except (ValueError, TypeError, OverflowError):
+        return None
+    return resolve_vehicle_spec_by_identity(
+        make=raw.get("man_name") or raw.get("make"),
+        model=raw.get("model_name") or raw.get("car_model"),
+        year=year, engine_cc=engine_cc,
+        trim=raw.get("trim_name"), series=raw.get("series"),
+        market=raw.get("market"), fuel={2: "Petrol", 3: "Diesel"}.get(fuel_id),
+        drive=raw.get("drive_type"),
     )

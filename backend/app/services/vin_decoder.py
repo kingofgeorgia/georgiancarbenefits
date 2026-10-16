@@ -10,6 +10,7 @@ import httpx
 from app.core.config import settings
 from app.services.personal_import_customs import PowertrainKind
 from app.services.vehicle_specs import resolve_vehicle_spec_by_identity
+from app.schemas.vehicle_specs import VehicleSpecification
 
 
 VIN_RE = re.compile(r"^[A-HJ-NPR-Z0-9]{17}$")
@@ -68,6 +69,7 @@ class VinDecodeResult:
     engine_kw: float | None = None
     horse_power: float | None = None
     horse_power_source: str | None = None
+    power_reference: VehicleSpecification | None = None
     electric_power_kw: float | None = None
     electric_power_kw_source: str | None = None
     drive_type: str | None = None
@@ -209,7 +211,8 @@ def parse_vpic_result(payload: dict[str, Any], vin: str) -> VinDecodeResult:
 
     # Curated horsepower is useful as a reference for ICE vehicles. For EVs it
     # must never be treated as the Russian regulatory 30-minute traction power.
-    if horse_power is None:
+    power_reference = None
+    if horse_power is None and powertrain_kind == "ICE":
         spec = resolve_vehicle_spec_by_identity(
             make=make,
             model=model,
@@ -217,10 +220,14 @@ def parse_vpic_result(payload: dict[str, Any], vin: str) -> VinDecodeResult:
             engine_cc=displacement_cc,
             trim=trim,
             series=series,
+            market="US",
+            fuel=_text(row.get("FuelTypePrimary")),
+            drive=_text(row.get("DriveType")),
         )
         if spec is not None:
             horse_power = float(spec.horse_power)
             horse_power_source = spec.source
+            power_reference = spec.entry
             if powertrain_kind is None and spec.powertrain_kind is not None:
                 powertrain_kind = spec.powertrain_kind
                 if powertrain_kind == "EV":
@@ -277,6 +284,7 @@ def parse_vpic_result(payload: dict[str, Any], vin: str) -> VinDecodeResult:
         engine_kw=engine_kw,
         horse_power=horse_power,
         horse_power_source=horse_power_source,
+        power_reference=power_reference,
         electric_power_kw=electric_power_kw,
         electric_power_kw_source=electric_power_kw_source,
         drive_type=_text(row.get("DriveType")) or known_drive,
