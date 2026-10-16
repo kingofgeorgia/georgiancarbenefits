@@ -54,14 +54,16 @@ If a myauto.ge listing is also loaded, listing data keeps priority for the Russi
 
 ## Limitations
 
-The VIN result always displays a labelled trim row. `trim_secondary` preserves
+The VIN result displays a labelled trim row only when a trim is identified.
+Missing trim hides the entire row, its source and the explanatory paragraph.
+`trim_secondary` preserves
 additional trim details when distinct; it becomes the primary `trim` only if
 `Trim` is unavailable. Empty/unknown placeholders are not trim names. Series,
 engine size and the local specification catalog are never used to guess trim.
 `trim_source` distinguishes manufacturer-submitted vPIC data (`NHTSA_VPIC`)
 from the existing narrowly scoped Tesla VIN descriptor rule (`VIN_PATTERN`).
-Provider trim fields take precedence over that rule. A missing trim is explicitly
-shown as unknown, not as a base configuration. Changing VIN or a failed lookup
+Provider trim fields take precedence over that rule. A missing trim stays null
+in the API and is never interpreted as a base configuration. Changing VIN or a failed lookup
 cannot leave the previous trim visible.
 
 Trim is a version designation, not a factory build sheet or a guarantee of every
