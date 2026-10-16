@@ -125,7 +125,11 @@ export function CarCatalog({ active = true }: { active?: boolean }) {
         {([ ["yearFrom", "budget-year-from", "year_from", 1900, new Date().getFullYear()], ["yearTo", "budget-year-to", "year_to", 1900, new Date().getFullYear()], ["mileage", "budget-mileage", "mileage_km_to", 0, 10000000] ] as const).map(([key, id, name, min, max]) => <div key={key} className="min-w-0 space-y-2"><Label htmlFor={id}>{t(key === "mileage" ? "mileageTo" : key)}</Label><Input id={id} name={name} type="number" min={min} max={max} value={filters[key]} onChange={(e) => changeFilter(key, e.target.value)} /></div>)}
         {mode === "RUSSIA_TOTAL" && <>
           <div className="min-w-0 space-y-2"><Label htmlFor="budget-logistics">{t("logisticsInput")}</Label><Input id="budget-logistics" name="logistics_cost_rub" type="number" required min={0} max={100000000} step="0.01" value={filters.logistics} onChange={(e) => changeFilter("logistics", e.target.value)} /></div>
-          <div className="min-w-0 space-y-2"><Label htmlFor="budget-registration">{t("registrationInput")}</Label><Input id="budget-registration" name="registration_cost_rub" type="number" required min={0} max={100000000} step="0.01" value={filters.registration} onChange={(e) => changeFilter("registration", e.target.value)} /></div>
+          <div className="min-w-0 space-y-2">
+            <Label htmlFor="budget-registration">{t("registrationInput")}</Label>
+            <Input id="budget-registration" name="registration_cost_rub" aria-describedby="budget-registration-help" type="number" required min={0} max={100000000} step="0.01" value={filters.registration} onChange={(e) => changeFilter("registration", e.target.value)} />
+            <p id="budget-registration-help" className="text-xs leading-5 text-muted-foreground">{t("registrationHelp")}</p>
+          </div>
         </>}
       </div>
       {formError && <p role="alert" className="text-sm text-red-600">{formError}</p>}
