@@ -63,7 +63,7 @@ class PublicAPIGuard:
     @staticmethod
     def group(scope):
         path = scope["path"].rstrip("/")
-        if path in {"/cars/from-url", "/cars/from-vin", "/cars/search", "/cars/budget", "/cars/makes", "/cars/models"}:
+        if path in {"/cars/from-url", "/cars/from-vin", "/cars/search", "/cars/budget", "/cars/makes", "/cars/models", "/cars/specifications"}:
             return "lookup"
         if scope["method"] == "POST":
             if path == "/calculator/total":

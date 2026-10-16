@@ -2,6 +2,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.services.personal_import_customs import PowertrainKind
 from app.services.vin_decoder import VinDecodeStatus, normalize_vin
+from app.schemas.vehicle_specs import VehicleSpecification
 
 
 class CarModelOption(BaseModel):
@@ -25,8 +26,9 @@ class CarListing(BaseModel):
     year: int
     price_usd: float
     engine_volume_cc: int
-    horse_power: int | None = None
+    horse_power: float | None = None
     horse_power_source: str | None = None
+    power_reference: VehicleSpecification | None = None
     electric_power_kw: float | None = None
     electric_power_kw_source: str | None = None
     fuel_type: str | None = None
@@ -69,6 +71,7 @@ class VinDecodeOut(BaseModel):
     engine_kw: float | None = None
     horse_power: float | None = None
     horse_power_source: str | None = None
+    power_reference: VehicleSpecification | None = None
     electric_power_kw: float | None = None
     electric_power_kw_source: str | None = None
     drive_type: str | None = None

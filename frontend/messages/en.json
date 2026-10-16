@@ -138,6 +138,23 @@
     "eurRub": "EUR → ₽",
     "gelRub": "GEL → ₽"
   },
+  "specifications": {
+    "title": "Modification catalog",
+    "make": "Make",
+    "model": "Model",
+    "year": "Year",
+    "modification": "Modification and market",
+    "choose": "Select",
+    "apply": "Apply modification",
+    "loading": "Loading catalog",
+    "retry": "Retry",
+    "referencePower": "Reference power: {power, number} metric hp",
+    "unit": { "PS": "PS (metric)", "SAE_HP": "hp (US)", "KW": "kW" },
+    "verified": "Verified: {date}",
+    "coverage": "Catalog: {count} modifications · version {version}. Coverage is incomplete.",
+    "referenceWarning": "System or peak power is not entered into tax calculations. Documentary power data is required.",
+    "exactEngineMissing": "This source does not confirm exact engine displacement; the calculation requires the value from vehicle documents."
+  },
   "budget": {
     "title": "Budget car search",
     "calculatorTab": "Calculator",

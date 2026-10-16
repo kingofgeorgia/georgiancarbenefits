@@ -106,16 +106,17 @@ def test_vpic_uses_metric_hp_conversion_when_engine_hp_is_missing() -> None:
     assert result.horse_power_source == "nhtsa_engine_kw_reference"
 
 
-def test_vpic_uses_curated_spec_when_nhtsa_omits_power() -> None:
+def test_vpic_uses_verified_spec_only_with_complete_identity() -> None:
     payload = {
         "Results": [
             {
-                "Make": "BMW",
-                "Model": "M4",
+                "Make": "Toyota",
+                "Model": "RAV4",
                 "ModelYear": "2024",
-                "Trim": "Competition xDrive",
+                "Trim": "LE",
                 "FuelTypePrimary": "Gasoline",
-                "DisplacementCC": "3000",
+                "DisplacementCC": "2487",
+                "DriveType": "FWD/Front-Wheel Drive",
             }
         ]
     }
@@ -123,8 +124,29 @@ def test_vpic_uses_curated_spec_when_nhtsa_omits_power() -> None:
     result = parse_vpic_result(payload, "WBS43AZ09RCP00001")
 
     assert result.status == VinDecodeStatus.COMPLETE
-    assert result.horse_power == 530.0
+    assert result.horse_power == 205.82
     assert result.horse_power_source == "spec_catalog"
+    assert result.power_reference.id == "toyota-rav4-2024-us-le-25-fwd"
+
+
+def test_vpic_does_not_reuse_old_broad_bmw_power_record() -> None:
+    result = parse_vpic_result({"Results": [{
+        "Make": "BMW", "Model": "M4", "ModelYear": "2024", "Trim": "Competition xDrive",
+        "FuelTypePrimary": "Gasoline", "DisplacementCC": "3000",
+    }]}, "WBS43AZ09RCP00001")
+    assert result.status == VinDecodeStatus.PARTIAL
+    assert result.horse_power is None
+    assert result.power_reference is None
+
+
+def test_vpic_hybrid_cannot_receive_power_from_ice_catalog_record() -> None:
+    result = parse_vpic_result({"Results": [{
+        "Make": "Toyota", "Model": "RAV4", "ModelYear": "2024", "Trim": "LE",
+        "FuelTypePrimary": "Gasoline", "FuelTypeSecondary": "Electric",
+        "DisplacementCC": "2487", "DriveType": "AWD",
+    }]}, "1HGCM82633A004352")
+    assert result.powertrain_kind == "OTHER_HYBRID"
+    assert result.horse_power is None and result.power_reference is None
 
 
 def test_vpic_ev_reference_power_does_not_become_regulatory_power() -> None:

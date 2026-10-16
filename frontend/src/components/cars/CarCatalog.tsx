@@ -11,6 +11,7 @@ import type { BudgetCandidate, BudgetCurrency, BudgetMode, BudgetSearchRequest, 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { VehiclePowerReference } from "./VehiclePowerReference";
 
 const selectClass = "h-9 w-full min-w-0 rounded-md border bg-background px-3 text-sm";
 
@@ -92,6 +93,7 @@ export function CarCatalog({ active = true }: { active?: boolean }) {
             <div className="flex flex-wrap justify-between gap-1 text-green-700"><dt>{t("remaining")}</dt><dd>{fmt(item.remaining_budget!)}</dd></div>
           </> : <div className="flex gap-2 text-amber-800"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><div><dt className="font-medium">{t("needsDetails")}</dt><dd>{t(`reason.${item.reason}`)}</dd></div></div>}
         </dl>
+        {car.power_reference && <VehiclePowerReference entry={car.power_reference} />}
         {breakdown && <details className="border-t pt-3">
           <summary className="cursor-pointer text-sm font-medium">{t("breakdown")}</summary>
           <dl className="mt-3 space-y-2 text-sm">

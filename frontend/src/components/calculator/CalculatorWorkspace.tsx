@@ -7,7 +7,7 @@ import { Calculator } from "./Calculator";
 import { CarCatalog } from "@/components/cars/CarCatalog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-const triggerClass = "min-h-12 whitespace-normal px-2 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm";
+const triggerClass = "min-h-12 whitespace-normal px-2 py-2 text-xs data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm";
 
 export function CalculatorWorkspace() {
   const t = useTranslations("budget");

@@ -7,10 +7,23 @@ from app.calculation.age import resolve_vehicle_age
 from app.core.public_urls import extract_myauto_car_id
 from app.schemas.cars import CarListing, CarModelOption, VinDecodeOut, VinDecodeRequest
 from app.schemas.budget import BudgetSearchRequest, BudgetSearchResult
-from app.services import budget, currency, myauto, vin_decoder
+from app.schemas.vehicle_specs import VehicleSpecificationSearch
+from app.services import budget, currency, myauto, vehicle_specs, vin_decoder
 from app.services.personal_import_customs import calculatePersonalImportCustoms
 
 router = APIRouter(prefix="/cars", tags=["cars"])
+
+
+@router.get("/specifications", response_model=VehicleSpecificationSearch)
+async def specifications(
+    make: str | None = Query(None, min_length=1, max_length=80),
+    model: str | None = Query(None, min_length=1, max_length=80),
+    year: int | None = Query(None, ge=1990, le=2100),
+):
+    return VehicleSpecificationSearch(
+        version=vehicle_specs.CATALOG.version,
+        items=vehicle_specs.find_specifications(make=make, model=model, year=year),
+    )
 
 
 class CarUrlRequest(BaseModel):
