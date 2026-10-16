@@ -85,6 +85,8 @@ Run catalog validation and matching tests, the full backend suite, frontend
 lint/typecheck/build and browser E2E. Tests reject duplicate IDs, invalid/future
 verification dates, nonfinite power, bad source URLs, conflicting matches and
 incomplete identities. Browser tests currently verify that the catalog is absent
-in RU/EN/KA and that the page makes no catalog request. Backend tests retain unit
+in RU/EN/KA and that the page makes no catalog request. Budget results on both the
+home tab and catalog route must not render source panels even if the API returns
+a catalog reference. Backend tests retain unit
 conversion, exact matching and hybrid safety coverage. External providers remain deterministic fixtures in E2E;
 the catalog itself and API/calculation are real.
