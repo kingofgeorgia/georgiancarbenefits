@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLocale, useTranslations } from "next-intl";
@@ -19,6 +19,7 @@ import { parseManufactureMonth } from "@/lib/manufacture-date";
 import { CalculatorResults } from "./CalculatorResults";
 import { CurrencyRatesWidget } from "./CurrencyRatesWidget";
 import { ShareDealButton } from "./ShareDealButton";
+import { ManufactureDateInput } from "./ManufactureDateInput";
 
 const currentYear = new Date().getFullYear();
 
@@ -105,7 +106,7 @@ export function Calculator() {
   });
 
   type FormData = z.infer<typeof schema>;
-  const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<FormData>({
+  const { register, control, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       logistics_cost_rub: 170000,
@@ -121,6 +122,7 @@ export function Calculator() {
   });
 
   const powertrainKind = watch("powertrain_kind");
+  const vehicleYear = Number(watch("car_year"));
   const autoMarketComparison = watch("auto_market_comparison");
   const usesElectricRegulatoryPower = powertrainKind === "EV" || powertrainKind === "SERIES_HYBRID";
 
@@ -342,7 +344,13 @@ export function Calculator() {
             <div><Label>{t("carPriceUsd")}</Label><Input type="number" step="0.01" {...register("car_price_usd")} />{errors.car_price_usd && <p className="text-sm text-red-500">{errors.car_price_usd.message}</p>}</div>
             <div><Label>{t("engineVolume")}</Label><Input type="number" disabled={powertrainKind === "EV"} {...register("engine_volume_cc")} />{errors.engine_volume_cc && <p className="text-sm text-red-500">{errors.engine_volume_cc.message}</p>}</div>
             <div><Label>{t("carYear")}</Label><Input type="number" min={1990} max={currentYear} {...register("car_year")} />{errors.car_year && <p className="text-sm text-red-500">{errors.car_year.message}</p>}</div>
-            <div><Label htmlFor="manufacture-date">{t("manufactureDate")}</Label><Input id="manufacture-date" type="text" placeholder={t("manufactureDatePlaceholder")} maxLength={7} autoComplete="off" aria-invalid={!!errors.manufacture_date} {...register("manufacture_date")} />{errors.manufacture_date && <p className="text-sm text-red-500">{errors.manufacture_date.message}</p>}</div>
+            <div>
+              <Label htmlFor="manufacture-date">{t("manufactureDate")}</Label>
+              <Controller name="manufacture_date" control={control} render={({ field }) => (
+                <ManufactureDateInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} inputRef={field.ref} vehicleYear={vehicleYear} error={errors.manufacture_date?.message} />
+              )} />
+              {errors.manufacture_date && <p id="manufacture-date-error" className="text-sm text-red-500">{errors.manufacture_date.message}</p>}
+            </div>
             {usesElectricRegulatoryPower ? (
               <div>
                 <Label>{t("electricPowerKw")}</Label>
