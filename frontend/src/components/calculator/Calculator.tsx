@@ -298,7 +298,7 @@ export function Calculator() {
               </div>
               <p className="text-xs text-muted-foreground">{t("vinHint")}</p>
               {decodedVin && (
-                <div className={`space-y-2 rounded-md border p-2 text-sm ${decodedVin.status === "PARTIAL" ? "border-amber-200 bg-amber-50" : "border-blue-200 bg-blue-50"}`}>
+                <div data-testid="vin-result" className={`space-y-2 rounded-md border p-2 text-sm ${decodedVin.status === "PARTIAL" ? "border-amber-200 bg-amber-50" : "border-blue-200 bg-blue-50"}`}>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{decodedVin.make} {decodedVin.model} {decodedVin.model_year}</span>
                     {decodedVin.series && <Badge variant="outline">{t("vinSeries")}: {decodedVin.series}</Badge>}
@@ -312,19 +312,21 @@ export function Calculator() {
                     <span className="text-xs text-muted-foreground ml-auto">{decodedVin.source}</span>
                     <button type="button" onClick={() => { setDecodedVin(null); setVin(""); }}><X className="h-4 w-4 text-gray-400 hover:text-gray-700" /></button>
                   </div>
-                  <dl data-testid="vin-trim" className="space-y-1 border-t pt-2">
-                    <div className="min-w-0">
-                      <dt className="text-xs text-muted-foreground">{t("vinTrim")}</dt>
-                      <dd className="break-words font-medium" data-testid="vin-trim-value">{[decodedVin.trim, decodedVin.trim_secondary].filter(Boolean).join(" / ") || t("vinTrimNotFound")}</dd>
-                    </div>
-                    {decodedVin.trim && (
-                      <div className="text-xs text-muted-foreground">
-                        <dt className="inline">{t("vinTrimSource")}: </dt>
-                        <dd className="inline">{decodedVin.trim_source === "VIN_PATTERN" ? t("vinTrimFromPattern") : "NHTSA vPIC"}</dd>
-                      </div>
-                    )}
-                  </dl>
-                  <p className="text-xs text-muted-foreground">{decodedVin.trim ? t("vinTrimHint") : t("vinTrimMissingHint")}</p>
+                  {decodedVin.trim && (
+                    <>
+                      <dl data-testid="vin-trim" className="space-y-1 border-t pt-2">
+                        <div className="min-w-0">
+                          <dt className="text-xs text-muted-foreground">{t("vinTrim")}</dt>
+                          <dd className="break-words font-medium" data-testid="vin-trim-value">{[decodedVin.trim, decodedVin.trim_secondary].filter(Boolean).join(" / ")}</dd>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          <dt className="inline">{t("vinTrimSource")}: </dt>
+                          <dd className="inline">{decodedVin.trim_source === "VIN_PATTERN" ? t("vinTrimFromPattern") : "NHTSA vPIC"}</dd>
+                        </div>
+                      </dl>
+                      <p className="text-xs text-muted-foreground">{t("vinTrimHint")}</p>
+                    </>
+                  )}
                   {decodedVin.status === "PARTIAL" && (
                     <div className="flex gap-2 text-xs text-amber-900">
                       <AlertTriangle className="h-4 w-4 shrink-0" />
