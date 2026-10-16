@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { api } from "@/lib/api";
 import type { DealRating, DealShareOut } from "@/lib/types";
+import { formatManufactureMonth } from "@/lib/manufacture-date";
 
 const METRIC_HP_PER_KW = 1.3596216173;
 
@@ -107,6 +108,10 @@ export function SharedDealView({ publicId }: { publicId: string }) {
           <Row label={t("logistics")} value={fmt(result.logistics_cost_rub)} />
           <Separator />
           <Row label={t("total")} value={fmt(result.total_cost_rub)} bold />
+          <div className="space-y-1 border-t pt-3 text-xs text-muted-foreground">
+            <div>{t("manufactureDateUsed")}: {formatManufactureMonth(result.manufacture_date_used)}</div>
+            {result.age_is_estimated && <p>{t("ageEstimated")}</p>}
+          </div>
         </CardContent>
       </Card>
 

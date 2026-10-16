@@ -39,12 +39,16 @@ async def vin(value: str):
         raise ValueError("VIN must contain exactly 17 valid VIN characters")
     if normalized == "1HGCM82633A004352":
         row = {"Make": "HONDA", "Model": "Accord", "ModelYear": "2003",
+               "Trim": "EX", "Trim2": "V6", "Series": "CM8",
                "DisplacementCC": "2999", "EngineHP": "240", "FuelTypePrimary": "Gasoline"}
     elif normalized == "1HGCM82633A004353":
         row = {"Make": "HONDA", "Model": "Accord", "ModelYear": "2003", "FuelTypePrimary": "Gasoline"}
     elif normalized == "5YJ3E1EA0SF004091":
         row = {"Make": "TESLA", "Model": "Model 3", "ModelYear": str(date.today().year - 2),
                "FuelTypePrimary": "Electric", "ElectrificationLevel": "BEV", "EngineHP": "283"}
+    elif normalized == "7SAYGDEF4PF665873":
+        row = {"Make": "TESLA", "Model": "Model Y", "ModelYear": "2023",
+               "FuelTypePrimary": "Electric", "ElectrificationLevel": "BEV"}
     else:
         row = {}
     return vin_decoder.parse_vpic_result({"Results": [row]}, normalized)

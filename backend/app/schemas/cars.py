@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.services.personal_import_customs import PowertrainKind
-from app.services.vin_decoder import VinDecodeStatus, normalize_vin
+from app.services.vin_decoder import VinDecodeStatus, VinTrimSource, normalize_vin
 from app.schemas.vehicle_specs import VehicleSpecification
 
 
@@ -59,6 +59,8 @@ class VinDecodeOut(BaseModel):
     model: str | None = None
     model_year: int | None = None
     trim: str | None = None
+    trim_secondary: str | None = None
+    trim_source: VinTrimSource | None = None
     series: str | None = None
     manufacturer: str | None = None
     body_class: str | None = None

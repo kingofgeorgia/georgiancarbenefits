@@ -1,16 +1,19 @@
+from __future__ import annotations
+
 import asyncio
 import re
 import time
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
 
 from app.core.config import settings
 from app.services.personal_import_customs import PowertrainKind
-from app.services.vehicle_specs import resolve_vehicle_spec_by_identity
-from app.schemas.vehicle_specs import VehicleSpecification
+
+if TYPE_CHECKING:
+    from app.schemas.vehicle_specs import VehicleSpecification
 
 
 VIN_RE = re.compile(r"^[A-HJ-NPR-Z0-9]{17}$")
@@ -49,6 +52,9 @@ class VinDecodeStatus(StrEnum):
     PROVIDER_ERROR = "PROVIDER_ERROR"
 
 
+VinTrimSource = Literal["NHTSA_VPIC", "VIN_PATTERN"]
+
+
 @dataclass(frozen=True)
 class VinDecodeResult:
     status: VinDecodeStatus
@@ -57,6 +63,8 @@ class VinDecodeResult:
     model: str | None = None
     model_year: int | None = None
     trim: str | None = None
+    trim_secondary: str | None = None
+    trim_source: VinTrimSource | None = None
     series: str | None = None
     manufacturer: str | None = None
     body_class: str | None = None
@@ -116,6 +124,13 @@ def _float(value: Any) -> float | None:
     return number if number >= 0 else None
 
 
+def _trim_text(value: Any) -> str | None:
+    text = _text(value)
+    if text is None or text.casefold() in {"n/a", "unknown", "not available", "not provided", "null", "none"}:
+        return None
+    return text
+
+
 def _int(value: Any) -> int | None:
     number = _float(value)
     if number is None:
@@ -158,6 +173,8 @@ def _known_trim_from_vin(vin: str, make: str | None, model: str | None, model_ye
 
 
 def parse_vpic_result(payload: dict[str, Any], vin: str) -> VinDecodeResult:
+    from app.services.vehicle_specs import resolve_vehicle_spec_by_identity
+
     vin = normalize_vin(vin)
     results = payload.get("Results")
     if not isinstance(results, list) or not results or not isinstance(results[0], dict):
@@ -173,7 +190,13 @@ def parse_vpic_result(payload: dict[str, Any], vin: str) -> VinDecodeResult:
     make = _text(row.get("Make"))
     model = _text(row.get("Model"))
     model_year = _int(row.get("ModelYear"))
-    trim = _text(row.get("Trim"))
+    trim = _trim_text(row.get("Trim"))
+    trim_secondary = _trim_text(row.get("Trim2"))
+    if trim is None:
+        trim, trim_secondary = trim_secondary, None
+    if trim and trim_secondary and trim.casefold() == trim_secondary.casefold():
+        trim_secondary = None
+    trim_source: VinTrimSource | None = "NHTSA_VPIC" if trim else None
     series = _text(row.get("Series"))
     powertrain_kind = _resolve_powertrain(row)
 
@@ -188,6 +211,7 @@ def parse_vpic_result(payload: dict[str, Any], vin: str) -> VinDecodeResult:
     known_trim, known_drive = _known_trim_from_vin(vin, make, model, model_year)
     if trim is None and known_trim is not None:
         trim = known_trim
+        trim_source = "VIN_PATTERN"
 
     displacement_l = _float(row.get("DisplacementL"))
     displacement_cc = _int(row.get("DisplacementCC"))
@@ -272,6 +296,8 @@ def parse_vpic_result(payload: dict[str, Any], vin: str) -> VinDecodeResult:
         model=model,
         model_year=model_year,
         trim=trim,
+        trim_secondary=trim_secondary,
+        trim_source=trim_source,
         series=series,
         manufacturer=_text(row.get("Manufacturer")),
         body_class=_text(row.get("BodyClass")),
