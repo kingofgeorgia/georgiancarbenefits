@@ -16,7 +16,9 @@ test("production date accepts only digits and keeps the slash while typing, repl
   await field.press("Home");
   await field.press("Shift+ArrowRight");
   await field.press("Shift+ArrowRight");
-  await field.pressSequentially("12");
+  await field.pressSequentially("1");
+  await expect(field).toHaveValue("1М/2021");
+  await field.pressSequentially("2");
   await expect(field).toHaveValue("12/2021");
   await field.press("Home");
   await field.press("ArrowRight");
@@ -105,9 +107,9 @@ test("cleared mask stays optional and does not submit placeholder characters", a
 });
 
 for (const copy of [
-  { locale: "ru", label: "Дата производства", calendar: "Выбрать месяц и год", year: "Год" },
-  { locale: "en", label: "Production date", calendar: "Choose month and year", year: "Year" },
-  { locale: "ka", label: "წარმოების თარიღი", calendar: "თვისა და წლის არჩევა", year: "წელი" },
+  { locale: "ru", label: "Дата производства", calendar: "Выбрать месяц и год", year: "Год", january: "январь" },
+  { locale: "en", label: "Production date", calendar: "Choose month and year", year: "Year", january: "January" },
+  { locale: "ka", label: "წარმოების თარიღი", calendar: "თვისა და წლის არჩევა", year: "წელი", january: "იანვარი" },
 ]) {
   test(`${copy.locale} production-date calendar fits mobile and accepts numeric input`, async ({ page }, info) => {
     const errors: string[] = [];
@@ -131,7 +133,7 @@ for (const copy of [
     expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(740);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await info.attach(`manufacture-calendar-${copy.locale}-mobile`, { body: await page.screenshot({ fullPage: true, animations: "disabled" }), contentType: "image/png" });
-    const month = `${new Intl.DateTimeFormat(copy.locale, { month: "long" }).format(new Date(2021, 0, 1))} 2021`;
+    const month = `${copy.january} 2021`;
     await dialog.getByRole("button", { name: month, exact: true }).click();
     await expect(field).toHaveValue("01/2021");
     await expect(dialog).toHaveCount(0);

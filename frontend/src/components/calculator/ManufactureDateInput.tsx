@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { IMaskMixin } from "react-imask";
 import { Popover } from "radix-ui";
 import { CalendarDays, ChevronLeft, ChevronRight, Eraser } from "lucide-react";
@@ -23,7 +23,6 @@ interface Props {
 
 export function ManufactureDateInput({ value, onChange, onBlur, inputRef, vehicleYear, error }: Props) {
   const t = useTranslations("calculator");
-  const locale = useLocale();
   const input = useRef<HTMLInputElement | null>(null);
   const yearSelect = useRef<HTMLSelectElement | null>(null);
   const [open, setOpen] = useState(false);
@@ -54,7 +53,7 @@ export function ManufactureDateInput({ value, onChange, onBlur, inputRef, vehicl
             spellCheck={false}
             placeholder={t("manufactureDatePlaceholder")}
             className="pr-10"
-            mask="MM/YYYY"
+            mask="MM/`YYYY"
             blocks={{ MM: { mask: "00", placeholderChar: monthPlaceholder[0] }, YYYY: { mask: "0000", placeholderChar: yearPlaceholder[0] } }}
             lazy={false}
             overwrite={true}
@@ -94,7 +93,6 @@ export function ManufactureDateInput({ value, onChange, onBlur, inputRef, vehicl
           </div>
           <div className="grid grid-cols-3 gap-1">
             {Array.from({ length: 12 }, (_, month) => {
-              const date = new Date(viewYear, month, 1);
               const number = String(month + 1).padStart(2, "0");
               const active = selected === `${viewYear}-${number}-01`;
               return <Button
@@ -102,13 +100,13 @@ export function ManufactureDateInput({ value, onChange, onBlur, inputRef, vehicl
                 type="button"
                 variant={active ? "default" : "ghost"}
                 className="h-12 min-w-0 flex-col gap-0 px-1"
-                aria-label={`${new Intl.DateTimeFormat(locale, { month: "long" }).format(date)} ${viewYear}`}
+                aria-label={`${t(`manufactureMonths.${number}.long`)} ${viewYear}`}
                 aria-pressed={active}
                 disabled={viewYear === maximumYear && month > now.getMonth()}
                 onClick={() => { onChange(`${number}/${viewYear}`); setOpen(false); }}
               >
                 <span className="text-xs opacity-70">{number}</span>
-                <span>{new Intl.DateTimeFormat(locale, { month: "short" }).format(date)}</span>
+                <span>{t(`manufactureMonths.${number}.short`)}</span>
               </Button>;
             })}
           </div>
