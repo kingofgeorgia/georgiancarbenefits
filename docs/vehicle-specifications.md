@@ -56,7 +56,9 @@ Existing nonempty provider horsepower is not overwritten.
 The user may explicitly choose a reference even when automatic matching is not
 possible. Applying a different make/model/year clears the old listing/VIN, price,
 mileage and photo. Choosing a record with unknown exact cc cannot keep a
-contradictory engine size. Applying/changing form data invalidates prior results.
+contradictory engine size. Applying a modification or editing catalog-populated
+power/identity fields invalidates prior results. Other manual edits retain the
+existing immutable Share Deal snapshot until recalculation, as before.
 Manual horsepower edits remove the active source attribution; year/powertrain
 edits invalidate the selected catalog identity. Reset also clears catalog controls.
 

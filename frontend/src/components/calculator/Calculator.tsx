@@ -358,7 +358,7 @@ export function Calculator() {
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} onChange={(event) => {
-            setCalculation(null);
+            if (catalogSelection && ["horse_power", "electric_power_kw", "engine_volume_cc", "car_year", "powertrain_kind"].includes(event.target.name)) setCalculation(null);
             if (["car_year", "powertrain_kind"].includes(event.target.name)) setCatalogSelection(null);
           }} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div><Label>{t("carPriceUsd")}</Label><Input type="number" step="0.01" {...register("car_price_usd")} />{errors.car_price_usd && <p className="text-sm text-red-500">{errors.car_price_usd.message}</p>}</div>
