@@ -29,6 +29,9 @@ test("manual modification supplies sourced metric power, calculates and invalida
   await page.locator('[name="horse_power"]').fill("500");
   await expect(page.getByTestId("applied-specification")).toHaveCount(0);
   await expect(page.getByText("Таможенный сбор", { exact: true })).toHaveCount(0);
+  await choose(page, "Toyota", "RAV4", "2024", "toyota-rav4-2024-us-le-25-fwd");
+  await page.getByRole("button", { name: "Применить модификацию", exact: true }).click();
+  await expect(page.locator('[name="car_price_usd"]')).toHaveValue("0");
   await page.getByRole("button", { name: "Сбросить расчёт" }).click();
   await expect(page.locator("#spec-make")).toBeHidden();
   expect(errors).toEqual([]);
@@ -46,6 +49,8 @@ test("Camry versions keep SAE and metric horsepower distinct and never invent ex
   await expect(page.locator('[name="horse_power"]')).toHaveValue("208.86");
   await page.locator('[name="engine_volume_cc"]').fill("2487");
   await expect(page.getByTestId("applied-specification")).toBeVisible();
+  await page.locator('[name="engine_volume_cc"]').fill("3456");
+  await expect(page.getByTestId("applied-specification")).toHaveCount(0);
   await page.locator("#spec-model").selectOption("RAV4");
   await expect(page.locator("#spec-year")).toHaveValue("");
   await expect(page.locator("#spec-entry")).toBeDisabled();

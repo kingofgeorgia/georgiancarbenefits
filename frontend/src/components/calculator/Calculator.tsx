@@ -126,7 +126,9 @@ export function Calculator() {
   const appliedReference = reference && Number(watch("car_year")) === catalogSelection?.year
     && powertrainKind === reference.powertrain_kind
     && (reference.powertrain_kind !== "ICE" || Number(watch("horse_power")) === reference.horse_power)
-    && (reference.engine_cc === null || Number(watch("engine_volume_cc")) === reference.engine_cc)
+    && (reference.engine_cc === null
+      ? !Number(watch("engine_volume_cc")) || Math.abs(Number(watch("engine_volume_cc")) / 1000 - reference.engine_liters) <= 0.1
+      : Number(watch("engine_volume_cc")) === reference.engine_cc)
     ? reference : null;
 
   const urlMutation = useMutation({
@@ -223,7 +225,7 @@ export function Calculator() {
 
   function applySpecification(entry: VehicleSpecification, year: number) {
     const identity = (value: string | null | undefined) => (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const source = loadedCar ? { make: loadedCar.make, model: loadedCar.model, year: loadedCar.year, kind: loadedCar.powertrain_kind, engine: loadedCar.engine_volume_cc } : decodedVin ? { make: decodedVin.make, model: decodedVin.model, year: decodedVin.model_year, kind: decodedVin.powertrain_kind, engine: decodedVin.displacement_cc } : null;
+    const source = loadedCar ? { make: loadedCar.make, model: loadedCar.model, year: loadedCar.year, kind: loadedCar.powertrain_kind, engine: loadedCar.engine_volume_cc } : decodedVin ? { make: decodedVin.make, model: decodedVin.model, year: decodedVin.model_year, kind: decodedVin.powertrain_kind, engine: decodedVin.displacement_cc } : catalogSelection ? { make: catalogSelection.entry.make, model: catalogSelection.entry.model, year: catalogSelection.year, kind: catalogSelection.entry.powertrain_kind, engine: Number(getValues("engine_volume_cc")) || null } : null;
     const sameVehicle = source && identity(source.make) === identity(entry.make) && identity(source.model) === identity(entry.model) && source.year === year
       && source.kind === entry.powertrain_kind && source.engine != null && Math.abs(source.engine / 1000 - entry.engine_liters) <= 0.1;
     if (source && !sameVehicle) {
