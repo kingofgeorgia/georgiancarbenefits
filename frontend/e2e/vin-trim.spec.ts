@@ -57,6 +57,7 @@ for (const [locale, button, placeholder] of [
     await expect(month).toHaveValue("05/2003");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     expect(errors).toEqual([]);
+    await expect(page.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: 10000 });
     await page.evaluate(() => window.scrollTo(0, 0));
     await info.attach(`vin-trim-${locale}-mobile`, { body: await page.screenshot({ fullPage: true, animations: "disabled" }), contentType: "image/png" });
   });
