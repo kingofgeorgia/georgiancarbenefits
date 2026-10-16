@@ -99,7 +99,9 @@ for (const [locale, title, apply] of [
     await page.getByRole("button", { name: apply, exact: true }).click();
     await expect(page.locator('[name="horse_power"]')).toHaveValue("205.82");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(await page.getByRole("tab").first().locator("span").evaluate((element) => element.getBoundingClientRect().height)).toBeLessThanOrEqual(20);
     expect(errors).toEqual([]);
+    await page.evaluate(() => window.scrollTo(0, 0));
     await info.attach(`modification-${locale}-mobile`, { body: await page.screenshot({ fullPage: true, animations: "disabled" }), contentType: "image/png" });
   });
 }
