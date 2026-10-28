@@ -6,6 +6,12 @@ The application estimates the total cost of buying a vehicle in Georgia and impo
 
 > **Important:** calculations are estimates. Customs and recycling rules change over time and must be verified against official sources for the actual declaration date.
 
+## Development Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for the current development sequence, acceptance
+criteria and approval gates. The next stage is the isolated OpenAI characteristics
+pilot; its preparation is published, but no pilot API requests have been run yet.
+
 ## Features
 
 - Personal-use import calculation for passenger cars
