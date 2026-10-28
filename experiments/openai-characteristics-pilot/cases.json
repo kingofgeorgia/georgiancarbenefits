@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "prepared_on": "2026-10-29",
+  "status": "draft_not_executed",
+  "budget_usd": 1,
+  "api_calls": 0,
+  "cases": [
+    {
+      "id": "ice-bmw-m4-2021",
+      "vehicle": { "make": "BMW", "model": "M4", "modification": "Competition Coupe with M xDrive", "year": 2021, "market": "ACEA", "powertrain": "ICE" },
+      "reference_status": "individual_source_fact_checked",
+      "reference_facts": [{ "metric": "engine_max_output", "value": 375, "unit": "kW" }],
+      "source_url": "https://www.press.bmwgroup.com/global/article/attachment/T0329893EN/477740",
+      "source_page_one_based": 1,
+      "checks": ["Do not extrapolate the May 2021 specification to later model years", "Do not classify combustion output as electric 30-minute power"]
+    },
+    {
+      "id": "ice-rav4-le-2024",
+      "vehicle": { "make": "Toyota", "model": "RAV4", "modification": "LE AWD 2.5", "year": 2024, "market": "US", "powertrain": "ICE" },
+      "reference_status": "individual_source_fact_checked",
+      "reference_facts": [{ "metric": "engine_output", "value": 203, "unit": "hp_as_printed" }],
+      "source_url": "https://www.toyota.com/content/dam/toyota/brochures/pdf/2024/rav4_ebrochure.pdf",
+      "source_page_one_based": 9,
+      "checks": ["Preserve the source unit; do not silently relabel hp as metric PS", "Do not use the Hybrid or Prime combined output"]
+    },
+    {
+      "id": "ice-camry-le-2020",
+      "vehicle": { "make": "Toyota", "model": "Camry", "modification": "LE 2.5 FWD", "year": 2020, "market": "US", "powertrain": "ICE" },
+      "reference_status": "needs_accessible_primary_document",
+      "reference_facts": [],
+      "checks": ["Previously catalogued values are not independent ground truth", "Do not replace nominal litres with invented exact displacement"]
+    },
+    {
+      "id": "hybrid-rav4-2024",
+      "vehicle": { "make": "Toyota", "model": "RAV4 Hybrid", "modification": "LE AWD", "year": 2024, "market": "US", "powertrain": "OTHER_HYBRID" },
+      "reference_status": "individual_source_fact_checked",
+      "reference_facts": [{ "metric": "combined_system_output", "value": 219, "unit": "hp_as_printed" }],
+      "source_url": "https://www.toyota.com/content/dam/toyota/brochures/pdf/2024/rav4_ebrochure.pdf",
+      "source_page_one_based": 3,
+      "checks": ["219 is combined system output, not a supported engine-only or 30-minute value", "A different engine-only value needs its own explicit source"]
+    },
+    {
+      "id": "phev-rav4-prime-2024",
+      "vehicle": { "make": "Toyota", "model": "RAV4 Prime", "modification": "SE AWD", "year": 2024, "market": "US", "powertrain": "OTHER_HYBRID" },
+      "reference_status": "individual_source_fact_checked",
+      "reference_facts": [{ "metric": "combined_system_output", "value": 302, "unit": "hp_as_printed" }],
+      "source_url": "https://www.toyota.com/content/dam/toyota/brochures/pdf/2024/rav4_ebrochure.pdf",
+      "source_page_one_based": 4,
+      "checks": ["Do not classify every plug-in hybrid as a series hybrid", "Combined output cannot fill an engine-only or 30-minute field"]
+    },
+    {
+      "id": "ev-bmw-i3-na0-reference",
+      "vehicle": { "make": "BMW", "model": "i3 Saloon", "generation": "NA0", "modification": "40 xDrive", "year": null, "market": "UK", "powertrain": "EV" },
+      "reference_status": "individual_source_fact_checked_not_vehicle_approval",
+      "reference_facts": [{ "metric": "electric_30_minute_output", "value": 170, "unit": "kW" }, { "metric": "electric_max_output", "value": 275, "unit": "kW" }],
+      "source_url": "https://www.bmw.co.uk/content/bmw/marketGB/bmw_co_uk/en/all-models/3-series/saloon/bmw-i3-saloon-technical-data.html",
+      "source_section": "Technical data, Electric motor, 40 xDrive",
+      "checks": ["Do not confuse the 275 kW output with 170 kW 30-minute output", "Current manufacturer reference does not establish a specific VIN, year or Russian document", "Do not transfer this generation's value to the older i3 hatchback or Range Extender"]
+    },
+    {
+      "id": "ev-tesla-model-y-ambiguous",
+      "vehicle": { "make": "Tesla", "model": "Model Y", "modification": null, "year": 2024, "market": null, "powertrain": "EV" },
+      "reference_status": "identity_safety_control_no_numeric_gold",
+      "reference_facts": [],
+      "checks": ["Request market and exact variant rather than choosing an arbitrary Model Y", "No numerical 30-minute value without applicable documentary evidence"]
+    },
+    {
+      "id": "ev-hyundai-ioniq5-2024",
+      "vehicle": { "make": "Hyundai", "model": "IONIQ 5", "modification": "AWD", "year": 2024, "market": "US", "powertrain": "EV" },
+      "reference_status": "needs_exact_variant_and_approval_document",
+      "reference_facts": [],
+      "checks": ["Do not infer 30-minute power from maximum motor output", "Charging power in kW is not traction-motor power", "Keep US and European variants separate"]
+    },
+    {
+      "id": "series-li-l7-2024",
+      "vehicle": { "make": "Li Auto", "model": "L7", "modification": "Max", "year": 2024, "market": "China", "powertrain": "SERIES_HYBRID" },
+      "reference_status": "needs_applicable_regulatory_document",
+      "reference_facts": [],
+      "checks": ["Manufacturer system output is not a 30-minute measurement", "No coefficient-based conversion or arbitrary summing of nominal values", "Document must match the relevant version and powertrain"]
+    },
+    {
+      "id": "series-bmw-i3-rex-2018",
+      "vehicle": { "make": "BMW", "model": "i3", "generation": "I01", "modification": "Range Extender", "year": 2018, "market": "US", "powertrain": "SERIES_HYBRID" },
+      "reference_status": "needs_exact_battery_variant_and_document",
+      "reference_facts": [],
+      "checks": ["Do not reuse the new NA0 saloon specification", "Separate generator-engine, electric peak, rated and explicit 30-minute power", "Rated power alone is not proof of the required 30-minute measurement"]
+    }
+  ]
+}
