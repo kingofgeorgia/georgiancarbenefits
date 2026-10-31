@@ -1,0 +1,14 @@
+diff --git a/Site.Master b/Site.Master
+--- a/Site.Master
++++ b/Site.Master
+@@ -79,2 +79,3 @@
+                         <li><a href="<%= GetHomeSectionUrl("delivery") %>"><%: T("NavDelivery") %></a></li>
++                        <li><a href="https://auto.glcexpress.com/<%= GetCurrentHtmlLanguage() %>/vehicle-catalog"><%: T("NavMileONAuto") %></a></li>
+                         <li><a href="<%= GetHomeSectionUrl("repair") %>"><%: T("NavRepair") %></a></li>
+diff --git a/Services/PublicSiteLocalizationService.cs b/Services/PublicSiteLocalizationService.cs
+--- a/Services/PublicSiteLocalizationService.cs
++++ b/Services/PublicSiteLocalizationService.cs
+@@ -322,2 +322,3 @@
+             texts["NavDelivery"] = new LocalizedText("Доставка", "Delivery", "მიწოდება");
++            texts["NavMileONAuto"] = new LocalizedText("MileON Auto", "MileON Auto", "MileON Auto");
+             texts["NavAuctionCenter"] = new LocalizedText("Аукционный центр", "Auction center", "აუქციონის ცენტრი");

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslations, useLocale } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
@@ -11,12 +12,15 @@ export function Navbar() {
   const locale = useLocale();
   const pathname = usePathname();
   const router = useRouter();
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
 
-  const isLoggedIn =
-    typeof window !== "undefined" && !!localStorage.getItem("access_token");
+  useEffect(() => {
+    setIsLoggedIn(Boolean(localStorage.getItem("access_token")));
+  }, [pathname]);
 
   function handleLogout() {
     localStorage.removeItem("access_token");
+    setIsLoggedIn(false);
     router.push(`/${locale}/login`);
   }
 
@@ -39,8 +43,11 @@ export function Navbar() {
           <Link href={`/${locale}`} className="hover:text-green-600 transition-colors">
             {t("calculator")}
           </Link>
-          <Link href={`/${locale}/catalog`} className="hover:text-green-600 transition-colors">
+          <Link href={`/${locale}/vehicle-catalog`} className="hover:text-green-600 transition-colors">
             {t("catalog")}
+          </Link>
+          <Link href={`/${locale}/catalog`} className="hover:text-green-600 transition-colors">
+            {t("listings")}
           </Link>
           <Link href={`/${locale}/history`} className="hover:text-green-600 transition-colors">
             {t("history")}
@@ -65,7 +72,9 @@ export function Navbar() {
             ))}
           </div>
 
-          {isLoggedIn ? (
+          {isLoggedIn === null ? (
+            <div className="h-8 w-32" aria-hidden="true" />
+          ) : isLoggedIn ? (
             <Button variant="ghost" size="sm" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-1" />
               {t("logout")}

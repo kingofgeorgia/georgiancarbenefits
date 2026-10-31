@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # Import models so Alembic can detect them
 from app.core.db import Base  # noqa: E402
-from app.models import User, Calculation  # noqa: E402, F401
+from app.models import Calculation, User, VehicleMakeModel, VehiclePowerObservation  # noqa: E402, F401
 from app.core.config import settings  # noqa: E402
 
 config = context.config

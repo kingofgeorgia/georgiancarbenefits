@@ -1,6 +1,7 @@
 from datetime import date, datetime
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.services.deal_score import DealRating, MarketPosition
 from app.services.personal_import_customs import CustomsPaymentKind, PowertrainKind
@@ -17,6 +18,8 @@ class CalculatorRequest(BaseModel):
     mileage_km: int | None = None
     source_make: str | None = None
     source_model: str | None = None
+    source_trim: str | None = None
+    source_url: str | None = None
     source_model_id: int | None = None
     powertrain_kind: PowertrainKind | None = None
     is_personal_use: bool = True
@@ -37,10 +40,33 @@ class CalculatorInput(CalculatorRequest):
     mileage_km: int | None = Field(default=None, ge=0, le=10_000_000)
     source_make: str | None = Field(default=None, max_length=80)
     source_model: str | None = Field(default=None, max_length=120)
+    source_trim: str | None = Field(default=None, max_length=180)
+    source_url: str | None = Field(default=None, max_length=2048)
     source_model_id: int | None = Field(default=None, gt=0, le=10_000_000)
     logistics_cost_rub: float = Field(default=170_000, ge=0, le=100_000_000)
     rf_analog_price_rub: float | None = Field(default=None, gt=0, le=100_000_000_000)
     note: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("source_url")
+    @classmethod
+    def validate_myauto_source_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        try:
+            parsed = urlsplit(value)
+            valid_port = parsed.port in (None, 443)
+        except ValueError:
+            valid_port = False
+            parsed = urlsplit("")
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname not in {"myauto.ge", "www.myauto.ge"}
+            or parsed.username is not None
+            or parsed.password is not None
+            or not valid_port
+        ):
+            raise ValueError("Only HTTPS MyAuto listing URLs are allowed")
+        return value
 
     @model_validator(mode="after")
     def validate_current_vehicle(self):
@@ -135,6 +161,10 @@ class CalculationOut(BaseModel):
     car_price_usd: float
     engine_volume_cc: int
     car_year: int
+    source_make: str | None = None
+    source_model: str | None = None
+    source_trim: str | None = None
+    source_url: str | None = None
     manufacture_date: date | None = None
     horse_power: float | None = None
     electric_power_kw: float | None = None

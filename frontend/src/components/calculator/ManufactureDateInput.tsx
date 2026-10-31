@@ -18,10 +18,11 @@ interface Props {
   onBlur: () => void;
   inputRef: (element: HTMLInputElement | null) => void;
   vehicleYear: number;
+  onYearChange: (year: number) => void;
   error?: string;
 }
 
-export function ManufactureDateInput({ value, onChange, onBlur, inputRef, vehicleYear, error }: Props) {
+export function ManufactureDateInput({ value, onChange, onBlur, inputRef, vehicleYear, onYearChange, error }: Props) {
   const t = useTranslations("calculator");
   const input = useRef<HTMLInputElement | null>(null);
   const yearSelect = useRef<HTMLSelectElement | null>(null);
@@ -58,7 +59,11 @@ export function ManufactureDateInput({ value, onChange, onBlur, inputRef, vehicl
             lazy={false}
             overwrite={true}
             value={value ?? ""}
-            onAccept={(next: string, mask: { unmaskedValue: string }) => onChange(mask.unmaskedValue ? next : null)}
+            onAccept={(next: string, mask: { unmaskedValue: string }) => {
+              onChange(mask.unmaskedValue ? next : null);
+              const match = /^(0[1-9]|1[0-2])\/(\d{4})$/.exec(next);
+              if (match) onYearChange(Number(match[2]));
+            }}
             onBlur={onBlur}
             inputRef={(element: HTMLInputElement | null) => { input.current = element; inputRef(element); }}
             aria-invalid={!!error}
@@ -86,7 +91,7 @@ export function ManufactureDateInput({ value, onChange, onBlur, inputRef, vehicl
         >
           <div className="flex items-center gap-2">
             <Button type="button" variant="ghost" size="icon" disabled={viewYear <= minimumYear} onClick={() => setViewYear((year) => year - 1)} aria-label={t("manufacturePreviousYear")} title={t("manufacturePreviousYear")}><ChevronLeft aria-hidden="true" /></Button>
-            <select ref={yearSelect} aria-label={t("manufactureYear")} value={viewYear} onChange={(event) => setViewYear(Number(event.target.value))} className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-center text-sm">
+            <select ref={yearSelect} aria-label={t("manufactureYear")} value={viewYear} onChange={(event) => { const year = Number(event.target.value); setViewYear(year); onYearChange(year); }} className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-center text-sm">
               {Array.from({ length: maximumYear - minimumYear + 1 }, (_, index) => <option key={index} value={maximumYear - index}>{maximumYear - index}</option>)}
             </select>
             <Button type="button" variant="ghost" size="icon" disabled={viewYear >= maximumYear} onClick={() => setViewYear((year) => year + 1)} aria-label={t("manufactureNextYear")} title={t("manufactureNextYear")}><ChevronRight aria-hidden="true" /></Button>
@@ -103,7 +108,7 @@ export function ManufactureDateInput({ value, onChange, onBlur, inputRef, vehicl
                 aria-label={`${t(`manufactureMonths.${number}.long`)} ${viewYear}`}
                 aria-pressed={active}
                 disabled={viewYear === maximumYear && month > now.getMonth()}
-                onClick={() => { onChange(`${number}/${viewYear}`); setOpen(false); }}
+                onClick={() => { onChange(`${number}/${viewYear}`); onYearChange(viewYear); setOpen(false); }}
               >
                 <span className="text-xs opacity-70">{number}</span>
                 <span>{t(`manufactureMonths.${number}.short`)}</span>

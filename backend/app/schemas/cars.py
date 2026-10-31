@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.services.personal_import_customs import PowertrainKind
@@ -12,6 +14,19 @@ class CarModelOption(BaseModel):
     man_id: int
     title: str
     group_title: str | None = None
+
+
+class LearnedVehiclePowerOut(BaseModel):
+    status: Literal["NOT_FOUND", "MATCH", "CONFLICT"]
+    make: str
+    model: str
+    car_year: int
+    engine_volume_cc: int
+    powertrain_kind: PowertrainKind
+    horse_power: float | None = None
+    electric_power_kw: float | None = None
+    matching_calculations: int
+    options: list[float]
 
 
 class CarListing(BaseModel):

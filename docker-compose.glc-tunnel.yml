@@ -1,0 +1,17 @@
+name: georgiancarbenefits-git
+
+services:
+  tunnel_proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:8081"
+    volumes:
+      - ./Caddyfile.glc-tunnel:/etc/caddy/Caddyfile:ro
+    networks:
+      - app_net
+
+networks:
+  app_net:
+    external: true
+    name: georgiancarbenefits-git_app_net

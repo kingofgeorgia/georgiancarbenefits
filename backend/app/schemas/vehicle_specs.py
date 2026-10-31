@@ -58,7 +58,7 @@ class VehicleSpecificationCatalog(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     version: date
-    items: tuple[VehicleSpecification, ...] = Field(min_length=1, max_length=500)
+    items: tuple[VehicleSpecification, ...] = Field(max_length=500)
 
     @model_validator(mode="after")
     def unique_ids(self):

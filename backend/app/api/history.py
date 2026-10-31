@@ -10,7 +10,7 @@ from app.core.db import get_db
 from app.models.calculation import Calculation
 from app.models.user import User
 from app.schemas.calculator import CalculationOut, CalculatorInput
-from app.services import currency
+from app.services import currency, vehicle_power_observations
 from app.services.personal_import_customs import calculatePersonalImportCustoms
 
 router = APIRouter(prefix="/history", tags=["history"])
@@ -57,6 +57,10 @@ async def save_calculation(
         car_price_usd=payload.car_price_usd,
         engine_volume_cc=payload.engine_volume_cc,
         car_year=payload.car_year,
+        source_make=payload.source_make,
+        source_model=payload.source_model,
+        source_trim=payload.source_trim,
+        source_url=payload.source_url,
         manufacture_date=payload.manufacture_date,
         horse_power=payload.horse_power,
         electric_power_kw=payload.electric_power_kw,
@@ -84,6 +88,21 @@ async def save_calculation(
         note=payload.note,
     )
     db.add(calc)
+    vehicle_power_observations.record_calculation_observation(
+        db,
+        payload,
+        {
+            "customs_fee_rub": precise["customsFee"],
+            "customs_duty_rub": precise["unifiedRate"],
+            "customs_payment_kind": precise["details"]["customsPaymentKind"],
+            "import_duty_rub": precise["importDuty"],
+            "excise_rub": precise["excise"],
+            "vat_rub": precise["vat"],
+            "recycling_fee_rub": precise["utilFee"],
+            "customs_total_rub": precise["total"],
+            "total_cost_rub": total,
+        },
+    )
     db.commit()
     db.refresh(calc)
     return calc

@@ -45,6 +45,10 @@ export function HistoryList() {
             <TableHeader>
               <TableRow>
                 <TableHead>{t("date")}</TableHead>
+                <TableHead>{t("make")}</TableHead>
+                <TableHead>{t("model")}</TableHead>
+                <TableHead>{t("trim")}</TableHead>
+                <TableHead>{t("ad")}</TableHead>
                 <TableHead>USD</TableHead>
                 <TableHead>{t("year")}</TableHead>
                 <TableHead>{t("engine")} (сс)</TableHead>
@@ -57,6 +61,16 @@ export function HistoryList() {
                 <TableRow key={c.id}>
                   <TableCell className="text-sm text-gray-500">
                     {new Date(c.created_at).toLocaleDateString("ru-RU")}
+                  </TableCell>
+                  <TableCell>{c.source_make || "—"}</TableCell>
+                  <TableCell>{c.source_model || "—"}</TableCell>
+                  <TableCell>{c.source_trim || "—"}</TableCell>
+                  <TableCell>
+                    {c.source_url ? (
+                      <a href={c.source_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+                        MyAuto.ge ↗
+                      </a>
+                    ) : "—"}
                   </TableCell>
                   <TableCell>${c.car_price_usd.toLocaleString()}</TableCell>
                   <TableCell>{c.car_year}</TableCell>

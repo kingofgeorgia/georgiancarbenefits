@@ -3,10 +3,10 @@
 import re
 import unicodedata
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 from app.schemas.vehicle_specs import VehicleSpecification, VehicleSpecificationCatalog
+from app.services.vehicle_catalog import CATALOG as VEHICLE_CATALOG
 
 
 @dataclass(frozen=True)
@@ -23,8 +23,10 @@ class ResolvedVehicleSpec:
         return self.entry.powertrain_kind
 
 
-_DATA_FILE = Path(__file__).resolve().parent.parent / "data" / "vehicle_specs.json"
-CATALOG = VehicleSpecificationCatalog.model_validate_json(_DATA_FILE.read_text(encoding="utf-8"))
+CATALOG = VehicleSpecificationCatalog.model_validate({
+    "version": VEHICLE_CATALOG["vehicle_specifications_version"],
+    "items": VEHICLE_CATALOG["vehicle_specifications"],
+})
 
 
 def _normalize(value: Any) -> str:

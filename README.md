@@ -155,6 +155,7 @@ In production:
 - any authorized Drom integration parameters remain server-side environment secrets.
 
 See [`docs/production.md`](docs/production.md) for the complete deployment, update, backup and verification procedure.
+For running beside the existing GLC Express IIS site through Cloudflare Tunnel, see [`docs/glc-cloudflare-tunnel.md`](docs/glc-cloudflare-tunnel.md) and use `docker-compose.glc-tunnel.yml` instead of publishing Caddy on ports 80/443.
 
 ## Development
 
@@ -291,7 +292,9 @@ georgiancarbenefits/
 
 ## Roadmap
 
-- expand curated/learned vehicle specification coverage;
+- expand vehicle specifications from make/model-only coverage to a reviewed make/model/year/market/trim catalog that can prefill exact engine displacement and verified power; record the source, units and verification date for each entry, require a unique variant match before autofill, and leave ambiguous or unsupported values for manual entry;
+- for Tesla EVs, add summed maximum 30-minute motor power per exact version/year from OTTS, SBKTS, ZOETS or EPTS, preserving the motor breakdown and document source; do not reuse one value across variants or fill Cybertruck/Roadster until a matching document is verified;
+- keep regulatory 30-minute electric power separate from peak/system power for EVs and series hybrids;
 - improve comparable matching with richer generation/body/engine attributes when Drom/source data permits it;
 - persist market-comparison snapshots in authenticated history;
 - add production observability, external backups and automated deployment;

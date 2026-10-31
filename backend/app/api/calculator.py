@@ -1,9 +1,11 @@
 from datetime import date, datetime, timezone
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
 from app.calculation.age import resolve_vehicle_age
 from app.calculation.tariffs import get_calculation_rule_version
+from app.core.db import get_db
 from app.schemas.calculator import (
     CalculatorInput,
     CalculatorResult,
@@ -11,7 +13,7 @@ from app.schemas.calculator import (
     DealAssessmentOut,
     MarketComparisonOut,
 )
-from app.services import currency
+from app.services import currency, vehicle_power_observations
 from app.services.deal_score import calculate_deal_assessment
 from app.services.personal_import_customs import calculatePersonalImportCustoms
 from app.services.russian_market import (
@@ -63,7 +65,7 @@ def _market_comparison_model(result: MarketComparison) -> MarketComparisonOut:
 
 
 @router.post("/total", response_model=CalculatorResult)
-async def calculate_total(payload: CalculatorInput):
+async def calculate_total(payload: CalculatorInput, db: Session = Depends(get_db)):
     """Public calculator for personal passenger-car import estimates."""
     try:
         snapshot = await currency.get_rate_snapshot()
@@ -160,7 +162,7 @@ async def calculate_total(payload: CalculatorInput):
             market_position=assessment.market_position,
         )
 
-    return CalculatorResult(
+    result = CalculatorResult(
         car_price_rub=car_price_rub,
         customs_fee_rub=precise["customsFee"],
         customs_duty_rub=precise["unifiedRate"],
@@ -186,6 +188,9 @@ async def calculate_total(payload: CalculatorInput):
         calculation_rule_version=get_calculation_rule_version(),
         rates=_currency_rates_model(snapshot),
     )
+    vehicle_power_observations.record_calculation_observation(db, payload, result)
+    db.commit()
+    return result
 
 
 @router.get("/rates", response_model=CurrencyRates)

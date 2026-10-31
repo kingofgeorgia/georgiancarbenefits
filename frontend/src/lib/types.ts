@@ -65,6 +65,19 @@ export interface CurrencyRates {
 }
 
 export type PowertrainKind = "ICE" | "OTHER_HYBRID" | "EV" | "SERIES_HYBRID";
+
+export interface LearnedVehiclePowerLookup {
+  status: "NOT_FOUND" | "MATCH" | "CONFLICT";
+  make: string;
+  model: string;
+  car_year: number;
+  engine_volume_cc: number;
+  powertrain_kind: PowertrainKind;
+  horse_power: number | null;
+  electric_power_kw: number | null;
+  matching_calculations: number;
+  options: number[];
+}
 export type CustomsPaymentKind = "UNIFIED_RATE" | "AGGREGATE_PAYMENT";
 export type DealRating = "EXCELLENT" | "GOOD" | "FAIR" | "WEAK" | "BAD";
 export type MarketPosition = "UNDER_MARKET" | "AT_MARKET" | "OVER_MARKET";
@@ -191,6 +204,8 @@ export interface CalculatorRequest {
   is_personal_use?: boolean;
   source_make?: string | null;
   source_model?: string | null;
+  source_trim?: string | null;
+  source_url?: string | null;
   source_model_id?: number | null;
   logistics_cost_rub: number;
   rf_analog_price_rub?: number | null;
